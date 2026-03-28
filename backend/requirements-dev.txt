@@ -1,0 +1,11 @@
+-r requirements.txt
+
+# Linting & formatting
+pre-commit
+black
+ruff
+
+# Type checking
+mypy
+sqlalchemy[mypy]
+types-passlib
