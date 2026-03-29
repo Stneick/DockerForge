@@ -1,16 +1,34 @@
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
+from sqlalchemy import text
 
 from app.api.auth import router as auth_router
+from app.api.users import router as users_router
 from app.config import settings
 from app.core.logging import setup_logging
+from app.database import engine
 from app.schemas.system import RootResponse
 
 setup_logging(settings.LOG_LEVEL)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.success("database connection verified")
+    except Exception as err:
+        logger.error("database unavailable, shutting down", error=str(err))
+        raise
+    yield
+    await engine.dispose()
+
 
 app = FastAPI(
     title="DockerForge API",
@@ -19,9 +37,11 @@ app = FastAPI(
     debug=settings.DEBUG,
     docs_url="/docs" if settings.ENVIRONMENT == "dev" else None,
     redoc_url="/redoc" if settings.ENVIRONMENT == "dev" else None,
+    lifespan=lifespan,
 )
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
 
 
 @app.exception_handler(Exception)
