@@ -14,6 +14,7 @@ from app.schemas.auth import (
 )
 from app.schemas.user import UserProfile
 from fastapi import HTTPException, status
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,6 +69,9 @@ async def register_user(data: RegisterRequest, db: AsyncSession) -> AuthResponse
     except IntegrityError as err:
         await db.rollback()
         # Catch race conditions or any other unique constraint violation
+        logger.warning(
+            "integrity error during registration", email=data.email, error=str(err)
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email or username already exists",
