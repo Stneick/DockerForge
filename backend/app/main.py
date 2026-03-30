@@ -1,5 +1,9 @@
+from datetime import UTC, datetime
+
 from fastapi import FastAPI
-from datetime import datetime, UTC
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import settings
 from app.schemas.system import RootResponse
 
 app = FastAPI(
@@ -8,15 +12,14 @@ app = FastAPI(
     description="",
 )
 
-#TODO
-# configurable CORS middleware origin
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/", response_model=RootResponse)
 async def root() -> RootResponse:
@@ -24,5 +27,5 @@ async def root() -> RootResponse:
         name="DockerForge API",
         version="0.1",
         status="online",
-        timestamp=datetime.now(UTC).isoformat(),
+        timestamp=datetime.now(UTC),
     )
