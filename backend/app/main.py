@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.auth import router as auth_router
 from app.config import settings
 from app.schemas.system import RootResponse
 
@@ -11,6 +12,8 @@ app = FastAPI(
     version="0.1",
     description="",
 )
+
+app.include_router(auth_router, prefix="/api/v1")
 
 app.add_middleware(
     CORSMiddleware,
