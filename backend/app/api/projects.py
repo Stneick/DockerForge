@@ -5,9 +5,11 @@ from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.project import (
+    CloneRequest,
     CreateProjectRequest,
     Project,
     ProjectListResponse,
+    SourceAnalysisResponse,
     UpdateProjectRequest,
 )
 from app.services.project_service import (
@@ -17,7 +19,8 @@ from app.services.project_service import (
     list_projects,
     update_project,
 )
-from fastapi import APIRouter, Depends, Query, status
+from app.services.source_service import clone_project_repo, upload_project_source
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -70,3 +73,23 @@ async def delete(
     db: AsyncSession = Depends(get_db),
 ):
     return await delete_project(project_id, current_user, db)
+
+
+@router.post("/{project_id}/upload", response_model=SourceAnalysisResponse)
+async def upload_source(
+    project_id: UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await upload_project_source(project_id, file, current_user, db)
+
+
+@router.post("/{project_id}/clone", response_model=SourceAnalysisResponse)
+async def clone_source(
+    project_id: UUID,
+    data: CloneRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await clone_project_repo(project_id, data, current_user, db)
