@@ -10,11 +10,11 @@ from app.config import settings
 from app.core.constants import ALLOWED_EXTENSIONS
 from app.models.project import SourceTypeEnum
 from app.models.user import User
-from app.schemas.common import SupportedLanguage
 from app.schemas.project import (
     CloneRequest,
     SourceAnalysisResponse,
 )
+from app.services.detector import detect_language
 from app.services.project_service import _get_project_or_404
 from fastapi import HTTPException, UploadFile, status
 from loguru import logger
@@ -85,16 +85,7 @@ async def upload_project_source(
     project.source_uploaded = True
     await db.commit()
 
-    # TODO
-    # Run auto-detection logic
-
-    return SourceAnalysisResponse(
-        detected_language=SupportedLanguage.PYTHON,
-        confidence=1.0,
-        detected_dependency_file="requirements.txt",
-        suggested_startup_command="fastapi run",
-        detected_port=8000,
-    )
+    return await asyncio.to_thread(detect_language, extract_dir)
 
 
 async def _clone_repo(repo_url: str, clone_dir: Path, branch: str = "main"):
@@ -140,13 +131,4 @@ async def clone_project_repo(
     project.repo_url = data.repo_url  # store original URL, not the one with token
     await db.commit()
 
-    # TODO
-    # Run auto-detection logic
-
-    return SourceAnalysisResponse(
-        detected_language=SupportedLanguage.PYTHON,
-        confidence=1.0,
-        detected_dependency_file="requirements.txt",
-        suggested_startup_command="fastapi run",
-        detected_port=8000,
-    )
+    return await asyncio.to_thread(detect_language, clone_dir)

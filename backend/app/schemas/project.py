@@ -78,7 +78,6 @@ class SourceAnalysisResponse(BaseModel):
     confidence: float = 0.0
     detected_dependency_file: str | None = None
     suggested_startup_command: str | None = None
-    detected_port: int | None = None
     detected_files: list[str] = []
     has_existing_dockerfile: bool = False
     warnings: list[str] = []
