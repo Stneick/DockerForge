@@ -37,13 +37,7 @@ def setup_logging(log_level: str = "INFO") -> None:
         enqueue=True,
     )
 
-    # Clear handlers from all uvicorn.* subloggers so they propagate to root uvicorn
-    for name in logging.root.manager.loggerDict:
-        if name.startswith("uvicorn."):
-            logging.getLogger(name).handlers = []
-
-    # intercept handler on root uvicorn logger + sqlalchemy
     intercept_handler = _InterceptHandler()
-    for name in ("uvicorn", "sqlalchemy.engine"):
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "sqlalchemy.engine"):
         logging.getLogger(name).handlers = [intercept_handler]
         logging.getLogger(name).propagate = False
