@@ -1,21 +1,38 @@
 import json
 from pathlib import Path
 
-from app.core.constants import C_EXTENSIONS, CPP_EXTENSIONS, LANGUAGE_INDICATORS
+from app.core.constants import (
+    C_EXTENSIONS,
+    CPP_EXTENSIONS,
+    IGNORE_DIRS,
+    LANGUAGE_INDICATORS,
+)
 from app.schemas.common import SupportedLanguage
 from app.schemas.project import SourceAnalysisResponse
 from loguru import logger
 
 
+def _should_skip(path: Path) -> bool:
+    return any(part in IGNORE_DIRS for part in path.parts)
+
+
 def _collect_files(source_dir: Path) -> dict:
+    logger.debug(f"Scanning source directory: {source_dir}")
     try:
-        return {
-            "names": {f.name for f in source_dir.rglob("*") if f.is_file()},
-            "extensions": {
-                f.suffix.lower() for f in source_dir.rglob("*") if f.is_file()
-            },
+        all_files = [
+            f
+            for f in source_dir.rglob("*")
+            if f.is_file() and not _should_skip(f.relative_to(source_dir))
+        ]
+        result = {
+            "names": {f.name for f in all_files},
+            "extensions": {f.suffix.lower() for f in all_files},
             "root_files": {f.name for f in source_dir.iterdir() if f.is_file()},
         }
+        logger.debug(
+            f"Found {len(result['names'])} total files, {len(result['root_files'])} at root, extensions: {sorted(result['extensions'])}"
+        )
+        return result
     except OSError as err:
         logger.error(f"Failed to scan source directory {source_dir}: {err}")
         return {"names": set(), "extensions": set(), "root_files": set()}
@@ -27,10 +44,17 @@ def _score_languages(files: dict, source_dir: Path) -> dict[str, int]:
         score = 0
         for dep_file in config["dependency_files"]:
             if dep_file in files["root_files"]:
+                logger.debug(f"[{lang}] dep file hit: {dep_file} (+2)")
                 score += 2  # dep file is a strong signal, weight it more
-        score += _check_extensions(lang, files["extensions"])
+        ext_score = _check_extensions(lang, files["extensions"])
+        if ext_score:
+            logger.debug(f"[{lang}] extension match (+{ext_score})")
+        score += ext_score
         if score > 0:
             scores[lang] = score
+            logger.debug(f"[{lang}] total score: {score}")
+        else:
+            logger.debug(f"[{lang}] no indicators found, skipping")
     return scores
 
 
@@ -49,18 +73,24 @@ def _check_extensions(lang: str, found_extensions: set[str]) -> int:
 
 def _pick_winner(scores: dict[str, int]) -> tuple[str | None, float]:
     if not scores:
+        logger.debug("No scores to pick from")
         return None, 0.0
 
     sorted_langs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    logger.debug(f"Scores ranked: {sorted_langs}")
     top_score = sorted_langs[0][1]
     top_lang = sorted_langs[0][0]
 
     if len(sorted_langs) == 1:
+        logger.debug(f"Single language match: {top_lang} → confidence=1.0")
         return top_lang, 1.0
 
     second_score = sorted_langs[1][1]
     # confidence = how much better the winner is vs the runner-up
     confidence = round(top_score / (top_score + second_score), 2)
+    logger.debug(
+        f"Winner: {top_lang} (score={top_score}) over {sorted_langs[1][0]} (score={second_score}) → confidence={confidence}"
+    )
     return top_lang, confidence
 
 
@@ -71,14 +101,22 @@ def _infer_python_startup(source_dir: Path) -> str:
         if path.exists():
             content = path.read_text(errors="ignore").lower()
             if "fastapi" in content or "uvicorn" in content:
+                logger.debug(f"Python: found fastapi/uvicorn in {dep_file}")
+                if (source_dir / "app" / "main.py").exists():
+                    logger.debug("Python: found app/main.py, using app.main:app")
+                    return "uvicorn app.main:app --host 0.0.0.0 --port 8000"
                 return "uvicorn main:app --host 0.0.0.0 --port 8000"
             if "flask" in content:
+                logger.debug(f"Python: found flask in {dep_file}")
                 return "flask run --host 0.0.0.0"
             if "django" in content:
+                logger.debug(f"Python: found django in {dep_file}")
                 return "python manage.py runserver 0.0.0.0:8000"
     if (source_dir / "manage.py").exists():  # Django without requirements.txt
+        logger.debug("Python: found manage.py (Django without dep file)")
         return "python manage.py runserver 0.0.0.0:8000"
     if (source_dir / "main.py").exists():
+        logger.debug("Python: found main.py")
         return "python main.py"
     return "python app.py"  # fallback
 
@@ -89,12 +127,17 @@ def _infer_node_startup(source_dir: Path) -> str:
         try:
             data = json.loads(pkg.read_text(errors="ignore"))
             scripts = data.get("scripts", {})
+            logger.debug(f"Node: scripts found in package.json: {list(scripts.keys())}")
             if "start" in scripts:
+                logger.debug("Node: using 'start' script → npm start")
                 return "npm start"
             if "serve" in scripts:
+                logger.debug("Node: using 'serve' script → npm run serve")
                 return "npm run serve"
+            logger.debug("Node: no start/serve script found in package.json")
         except json.JSONDecodeError as err:
             logger.error(f"Failed to parse package.json in {source_dir}: {err}")
+    logger.debug("Node: falling back to node index.js")
     return "node index.js"
 
 
@@ -106,9 +149,14 @@ def _infer_go_startup(source_dir: Path) -> str:
             parts = first_line.split()
             if len(parts) >= 2:
                 module_name = parts[-1].split("/")[-1]
+                logger.debug(
+                    f"Go: parsed module path '{parts[-1]}' → binary name '{module_name}'"
+                )
                 return f"./{module_name}"
+            logger.debug(f"Go: go.mod first line malformed: '{first_line}'")
         except (IndexError, OSError) as err:
             logger.error(f"Failed to parse go.mod in {source_dir}: {err}")
+    logger.debug("Go: falling back to ./app")
     return "./app"
 
 
@@ -122,12 +170,22 @@ _STARTUP_INFERRERS = {
 def _infer_startup_command(lang: str, source_dir: Path) -> str:
     inferrer = _STARTUP_INFERRERS.get(lang)
     if inferrer is None:
-        return LANGUAGE_INDICATORS[lang]["startup_command"]  # fallback to constant
+        cmd = LANGUAGE_INDICATORS[lang]["startup_command"]
+        logger.debug(f"No inferrer for {lang}, using constant default: {cmd}")
+        return cmd
     return inferrer(source_dir)
 
 
 def detect_language(source_dir: Path) -> SourceAnalysisResponse:
-    files = _collect_files(source_dir)  # returns set of relative paths/names
+    # Unwrap single top-level directory (common with zip/tar archives)
+    children = list(source_dir.iterdir())
+    if len(children) == 1 and children[0].is_dir():
+        logger.debug(
+            f"Archive extracted into single subdirectory, descending into: {children[0].name}"
+        )
+        source_dir = children[0]
+
+    files = _collect_files(source_dir)
     scores = _score_languages(files, source_dir)
     best_lang, confidence = _pick_winner(scores)
 
