@@ -1,5 +1,6 @@
 import asyncio
 import shutil
+import subprocess
 import tarfile
 import zipfile
 from pathlib import Path
@@ -92,22 +93,27 @@ async def _clone_repo(repo_url: str, clone_dir: Path, branch: str = "main"):
     if clone_dir.exists():
         shutil.rmtree(clone_dir)
 
-    process = await asyncio.create_subprocess_exec(
-        "git",
-        "clone",
-        "--depth",
-        "1",
-        "--branch",
-        branch,
-        repo_url,
-        str(clone_dir),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    _, stderr = await process.communicate()
+    def _run_clone():
+        return subprocess.run(
+            [
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                "--branch",
+                branch,
+                repo_url,
+                str(clone_dir),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
 
-    if process.returncode != 0:
-        logger.warning(f"Git clone failed for project {clone_dir}: {stderr.decode()}")
+    result = await asyncio.to_thread(_run_clone)
+
+    if result.returncode != 0:
+        logger.warning(f"Git clone failed for project {clone_dir}: {result.stderr}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Git clone failed: invalid URL, branch, or repository not accessible",
