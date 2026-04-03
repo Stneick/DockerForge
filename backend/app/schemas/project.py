@@ -80,6 +80,7 @@ class SourceAnalysisResponse(BaseModel):
     suggested_startup_command: str | None = None
     detected_files: list[str] = []
     has_existing_dockerfile: bool = False
+    is_frontend: bool | None = None
     warnings: list[str] = []
 
 

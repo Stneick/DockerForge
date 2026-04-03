@@ -94,7 +94,7 @@ def _pick_winner(scores: dict[str, int]) -> tuple[str | None, float]:
     return top_lang, confidence
 
 
-def _infer_python_startup(source_dir: Path) -> str:
+def _infer_python_startup(source_dir: Path) -> str | None:
     dep_files = ["requirements.txt", "pyproject.toml", "Pipfile", "setup.py"]
     for dep_file in dep_files:
         path = source_dir / dep_file
@@ -118,10 +118,14 @@ def _infer_python_startup(source_dir: Path) -> str:
     if (source_dir / "main.py").exists():
         logger.debug("Python: found main.py")
         return "python main.py"
-    return "python app.py"  # fallback
+    if (source_dir / "app.py").exists():
+        logger.debug("Python: found app.py, falling back to python app.py")
+        return "python app.py"
+    logger.debug("Python: no startup command found")
+    return None
 
 
-def _infer_node_startup(source_dir: Path) -> str:
+def _infer_node_startup(source_dir: Path) -> str | None:
     pkg = source_dir / "package.json"
     if pkg.exists():
         try:
@@ -137,8 +141,11 @@ def _infer_node_startup(source_dir: Path) -> str:
             logger.debug("Node: no start/serve script found in package.json")
         except json.JSONDecodeError as err:
             logger.error(f"Failed to parse package.json in {source_dir}: {err}")
-    logger.debug("Node: falling back to node index.js")
-    return "node index.js"
+    if (source_dir / "index.js").exists():
+        logger.debug("Node: found index.js, falling back to node index.js")
+        return "node index.js"
+    logger.debug("Node: no startup command found")
+    return None
 
 
 def _infer_go_startup(source_dir: Path) -> str:
@@ -160,6 +167,43 @@ def _infer_go_startup(source_dir: Path) -> str:
     return "./app"
 
 
+def _is_frontend_project(lang: str, source_dir: Path) -> bool:
+    """Check if a Node project is a frontend app to potentially use Nginx"""
+    if lang != "node":
+        return False
+
+    pkg = source_dir / "package.json"
+    if not pkg.exists():
+        return False
+
+    try:
+        data = json.loads(pkg.read_text(errors="ignore"))
+        deps = {
+            **data.get("dependencies", {}),
+            **data.get("devDependencies", {}),
+        }
+        frontend_indicators = [
+            "react",
+            "vue",
+            "vite",
+            "@angular/core",
+            "next",
+            "nuxt",
+            "svelte",
+            "@sveltejs/kit",
+            "gatsby",
+            "astro",
+        ]
+        matched = [fw for fw in frontend_indicators if fw in deps]
+        if matched:
+            logger.debug(f"Node: frontend indicators found: {matched}")
+            return True
+        logger.debug("Node: no frontend indicators found, treating as backend")
+        return False
+    except json.JSONDecodeError:
+        return False
+
+
 _STARTUP_INFERRERS = {
     "python": _infer_python_startup,
     "node": _infer_node_startup,
@@ -167,7 +211,7 @@ _STARTUP_INFERRERS = {
 }
 
 
-def _infer_startup_command(lang: str, source_dir: Path) -> str:
+def _infer_startup_command(lang: str, source_dir: Path) -> str | None:
     inferrer = _STARTUP_INFERRERS.get(lang)
     if inferrer is None:
         cmd = LANGUAGE_INDICATORS[lang]["startup_command"]
@@ -200,10 +244,12 @@ def detect_language(source_dir: Path) -> SourceAnalysisResponse:
             suggested_startup_command=None,
             detected_files=list(files["root_files"]),
             has_existing_dockerfile="Dockerfile" in files["root_files"],
+            is_frontend=None,
             warnings=["Could not detect programming language"],
         )
 
-    startup_cmd = _infer_startup_command(best_lang, source_dir)
+    is_frontend = _is_frontend_project(best_lang, source_dir)
+    startup_cmd: str | None = _infer_startup_command(best_lang, source_dir)
 
     dep_file = None
     for df in LANGUAGE_INDICATORS[best_lang]["dependency_files"]:
@@ -229,5 +275,6 @@ def detect_language(source_dir: Path) -> SourceAnalysisResponse:
         suggested_startup_command=startup_cmd,
         detected_files=list(files["root_files"]),
         has_existing_dockerfile="Dockerfile" in files["root_files"],
+        is_frontend=is_frontend,  # TODO is_frontend=true AND startup_cmd=null = Nginx, tell frontend!
         warnings=warnings,
     )
