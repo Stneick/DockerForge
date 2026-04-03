@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # Upload
     MAX_UPLOAD_SIZE_MB: int = 100
-    UPLOAD_TEMP_DIR: str = "/tmp/dockerforge/uploads"
+    PROJECTS_SOURCE_DIR: str = "/var/lib/dockerforge/projects"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000"
