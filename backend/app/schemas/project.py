@@ -71,3 +71,20 @@ class Project(BaseModel):
 class ProjectListResponse(BaseModel):
     items: list[Project]
     pagination: Pagination
+
+
+class SourceAnalysisResponse(BaseModel):
+    detected_language: SupportedLanguage | None = None
+    confidence: float = 0.0
+    detected_dependency_file: str | None = None
+    suggested_startup_command: str | None = None
+    detected_port: int | None = None
+    detected_files: list[str] = []
+    has_existing_dockerfile: bool = False
+    warnings: list[str] = []
+
+
+class CloneRequest(BaseModel):
+    repo_url: str
+    branch: str = "main"
+    access_token: str | None = None
