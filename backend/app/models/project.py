@@ -47,7 +47,7 @@ class Project(Base):
     )
     dependency_file: Mapped[str | None] = mapped_column(String(255), nullable=True)
     startup_command: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    env_vars: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    env_vars: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True)
     port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_type: Mapped[SourceTypeEnum] = mapped_column(
         Enum(SourceTypeEnum), default=SourceTypeEnum.none, nullable=False
