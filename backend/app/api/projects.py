@@ -134,7 +134,7 @@ async def preview_dockerfile(
         )
 
     dockerfile_content = generate_dockerfile(
-        language=str(language),
+        language=language.value,
         dependency_file=overrides.dependency_file or project.dependency_file,
         startup_command=overrides.startup_command or project.startup_command,
         port=overrides.port or project.port,
