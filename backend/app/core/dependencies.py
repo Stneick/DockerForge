@@ -5,8 +5,8 @@ import jwt
 from app.core.security import decode_token
 from app.database import async_session
 from app.models import User
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, HTTPException, status
+from fastapi.security import APIKeyCookie
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -15,23 +15,28 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-security = HTTPBearer()
+cookie_scheme = APIKeyCookie(name="access_token")
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    token: str = Depends(cookie_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    token = credentials.credentials
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":
             # TODO maybe change message to just "Invalid token" after frontend is done
-            raise HTTPException(status_code=401, detail="Invalid token type")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type"
+            )
         user_id = payload.get("sub")
     except jwt.PyJWTError as err:
-        raise HTTPException(status_code=401, detail="Invalid token") from err
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from err
     user = await db.get(User, uuid.UUID(user_id))
     if not user:
-        raise HTTPException(status_code=401, detail="user not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="user not found"
+        )
     return user

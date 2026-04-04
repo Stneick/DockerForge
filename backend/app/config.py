@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "info"
     ENVIRONMENT: Literal["dev", "prod"] = "dev"
     DEBUG: bool = True
+    COOKIE_SECURE: bool = False
 
     # Database
     DB_USER: str

@@ -8,7 +8,6 @@ from app.models.user import RefreshToken, User
 from app.schemas.auth import (
     AuthResponse,
     LoginRequest,
-    RefreshRequest,
     RegisterRequest,
     TokenResponse,
 )
@@ -106,8 +105,8 @@ async def login_user(data: LoginRequest, db: AsyncSession) -> AuthResponse:
     )
 
 
-async def refresh_access_token(data: RefreshRequest, db: AsyncSession) -> TokenResponse:
-    token_hash = hashlib.sha256(data.refresh_token.encode()).hexdigest()
+async def refresh_access_token(refresh_token: str, db: AsyncSession) -> TokenResponse:
+    token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     result = await db.execute(
         select(RefreshToken).where(RefreshToken.token_hash == token_hash)
     )
@@ -130,8 +129,8 @@ async def refresh_access_token(data: RefreshRequest, db: AsyncSession) -> TokenR
     )
 
 
-async def logout_user(data: RefreshRequest, db: AsyncSession) -> None:
-    token_hash = hashlib.sha256(data.refresh_token.encode()).hexdigest()
+async def logout_user(refresh_token: str, db: AsyncSession) -> None:
+    token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     result = await db.execute(
         select(RefreshToken).where(RefreshToken.token_hash == token_hash)
     )

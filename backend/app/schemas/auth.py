@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from app.schemas.user import UserProfile
 
@@ -50,15 +50,19 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
-
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # access token TTL in seconds
+
+
+class AuthUserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user: UserProfile
+    token_type: str = "bearer"
+    expires_in: int
 
 
 class AuthResponse(BaseModel):
