@@ -1,0 +1,27 @@
+# Stage 1: Build the frontend
+FROM {{ base_image | default("node:20-alpine", true) }} AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN {{ startup_command | default("npm run build", true) }}
+
+# Stage 2: Serve with nginx
+FROM nginx:alpine
+
+COPY --from=builder /app/{{ build_output_dir | default("dist", true) }} /usr/share/nginx/html
+
+{% if port %}
+EXPOSE {{ port }}
+{% else %}
+EXPOSE 80
+{% endif %}
+
+{% for env in env_vars %}
+ENV {{ env.key }}={{ env.value }}
+{% endfor %}
+
+CMD ["nginx", "-g", "daemon off;"]

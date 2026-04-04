@@ -115,6 +115,7 @@ async def upload_project_source(
         project.dependency_file = analysis.detected_dependency_file
     if analysis.suggested_startup_command:
         project.startup_command = analysis.suggested_startup_command
+    project.is_frontend = analysis.is_frontend or False
     await db.commit()
 
     return analysis
@@ -184,6 +185,28 @@ async def clone_project_repo(
         project.dependency_file = analysis.detected_dependency_file
     if analysis.suggested_startup_command:
         project.startup_command = analysis.suggested_startup_command
+    project.is_frontend = analysis.is_frontend or False
     await db.commit()
 
     return analysis
+
+
+async def redetect_project(
+    project_id: UUID, user: User, db: AsyncSession
+) -> SourceAnalysisResponse:
+    project = await _get_project_or_404(project_id, user, db)
+
+    if not project.source_uploaded:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No source code uploaded yet",
+        )
+
+    source_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
+    if not source_dir.exists():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Source directory not found. Please re-upload.",
+        )
+
+    return await asyncio.to_thread(detect_language, source_dir)

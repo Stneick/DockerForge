@@ -52,6 +52,7 @@ class Project(BaseModel):
     language: SupportedLanguage | None
     dependency_file: str | None
     startup_command: str | None
+    is_frontend: bool = False
     env_vars: list[EnvVar] = []
     port: int | None
     source_type: str  # "upload" | "git" | "none"
@@ -88,3 +89,20 @@ class CloneRequest(BaseModel):
     repo_url: str
     branch: str = "main"
     access_token: str | None = None
+
+
+class DockerfileOverrides(BaseModel):
+    base_image: str | None = None
+    language: SupportedLanguage | None = None
+    dependency_file: str | None = None
+    startup_command: str | None = None
+    port: int | None = None
+    env_vars: list[EnvVar] | None = None
+    multi_stage: bool = True
+
+
+class DockerfilePreviewResponse(BaseModel):
+    dockerfile_content: str
+    base_image: str
+    estimated_layers: int
+    warnings: list[str]

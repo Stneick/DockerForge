@@ -1,0 +1,21 @@
+FROM {{ base_image | default("node:20-alpine", true) }} AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+{% if port %}
+EXPOSE {{ port }}
+{% endif %}
+
+{% for env in env_vars %}
+ENV {{ env.key }}={{ env.value }}
+{% endfor %}
+
+CMD {{ startup_command | default("node index.js", true) | tojson }}
