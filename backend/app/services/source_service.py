@@ -10,8 +10,8 @@ from uuid import UUID
 
 import aiofiles
 from app.config import settings
-from app.core.constants import ALLOWED_EXTENSIONS
-from app.models.project import SourceTypeEnum
+from app.core.constants import ALLOWED_EXTENSIONS, LANGUAGE_INDICATORS
+from app.models.project import LanguageEnum, SourceTypeEnum
 from app.models.user import User
 from app.schemas.project import (
     CloneRequest,
@@ -102,11 +102,22 @@ async def upload_project_source(
     await _extract_archive(temp_path, extract_dir, archive_type)
     temp_path.unlink()  # delete the archive
 
+    analysis = await asyncio.to_thread(detect_language, extract_dir)
+
     project.source_type = SourceTypeEnum.upload
     project.source_uploaded = True
+    if analysis.detected_language:
+        project.language = LanguageEnum(analysis.detected_language.value)
+        project.port = LANGUAGE_INDICATORS[analysis.detected_language.value][
+            "default_port"
+        ]
+    if analysis.detected_dependency_file:
+        project.dependency_file = analysis.detected_dependency_file
+    if analysis.suggested_startup_command:
+        project.startup_command = analysis.suggested_startup_command
     await db.commit()
 
-    return await asyncio.to_thread(detect_language, extract_dir)
+    return analysis
 
 
 async def _clone_repo(repo_url: str, clone_dir: Path, branch: str = "main"):
@@ -159,9 +170,20 @@ async def clone_project_repo(
     clone_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
     await _clone_repo(clone_url, clone_dir, data.branch)
 
+    analysis = await asyncio.to_thread(detect_language, clone_dir)
+
     project.source_type = SourceTypeEnum.git
     project.source_uploaded = True
     project.repo_url = data.repo_url  # store original URL, not the one with token
+    if analysis.detected_language:
+        project.language = LanguageEnum(analysis.detected_language.value)
+        project.port = LANGUAGE_INDICATORS[analysis.detected_language.value][
+            "default_port"
+        ]
+    if analysis.detected_dependency_file:
+        project.dependency_file = analysis.detected_dependency_file
+    if analysis.suggested_startup_command:
+        project.startup_command = analysis.suggested_startup_command
     await db.commit()
 
-    return await asyncio.to_thread(detect_language, clone_dir)
+    return analysis
