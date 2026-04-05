@@ -26,6 +26,7 @@ async def get_current_user(
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":
+            # TODO maybe change message to just "Invalid token" after frontend is done
             raise HTTPException(status_code=401, detail="Invalid token type")
         user_id = payload.get("sub")
     except jwt.PyJWTError as err:

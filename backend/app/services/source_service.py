@@ -1,5 +1,7 @@
 import asyncio
+import os
 import shutil
+import stat
 import subprocess
 import tarfile
 import zipfile
@@ -22,6 +24,24 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+def _force_rmtree(path: Path) -> None:
+    """
+    shutil.rmtree substitute that handles PermissionError on read-only files
+    Git marks pack files inside .git/objects/ as read-only on Windows.
+    """
+
+    def _on_error(func, fpath, exc):
+        if isinstance(exc, PermissionError):
+            logger.debug(f"Clearing read-only flag on {fpath} and retrying deletion")
+            os.chmod(fpath, stat.S_IWRITE)
+            func(fpath)
+        else:
+            logger.error(f"Unexpected error while deleting {fpath}: {exc}")
+            raise exc
+
+    shutil.rmtree(path, onexc=_on_error)
+
+
 def _validate_archive(filename: str) -> str:
     if filename.endswith(".tar.gz") or filename.endswith(".tgz"):
         return "tar"
@@ -37,7 +57,7 @@ def _validate_archive(filename: str) -> str:
 async def _extract_archive(temp_path: Path, extract_dir: Path, archive_type: str):
     def _extract():
         if extract_dir.exists():
-            shutil.rmtree(extract_dir)  # clean previous upload
+            _force_rmtree(extract_dir)  # clean previous upload
         extract_dir.mkdir(parents=True, exist_ok=True)
 
         if archive_type == "zip":
@@ -61,7 +81,7 @@ async def upload_project_source(
         )
 
     archive_type = _validate_archive(file.filename)
-    temp_path = Path(settings.UPLOAD_TEMP_DIR) / str(project_id) / file.filename
+    temp_path = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / file.filename
     temp_path.parent.mkdir(parents=True, exist_ok=True)
 
     total_size = 0
@@ -77,7 +97,7 @@ async def upload_project_source(
                 )
             await f.write(chunk)
 
-    extract_dir = Path(settings.UPLOAD_TEMP_DIR) / str(project_id) / "source"
+    extract_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
 
     await _extract_archive(temp_path, extract_dir, archive_type)
     temp_path.unlink()  # delete the archive
@@ -91,7 +111,7 @@ async def upload_project_source(
 
 async def _clone_repo(repo_url: str, clone_dir: Path, branch: str = "main"):
     if clone_dir.exists():
-        shutil.rmtree(clone_dir)
+        _force_rmtree(clone_dir)
 
     def _run_clone():
         return subprocess.run(
@@ -110,7 +130,14 @@ async def _clone_repo(repo_url: str, clone_dir: Path, branch: str = "main"):
             timeout=120,
         )
 
-    result = await asyncio.to_thread(_run_clone)
+    try:
+        result = await asyncio.to_thread(_run_clone)
+    except subprocess.TimeoutExpired as err:
+        logger.warning(f"Git clone timed out for {clone_dir}")
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Git clone timed out — repository may be too large or unreachable",
+        ) from err
 
     if result.returncode != 0:
         logger.warning(f"Git clone failed for project {clone_dir}: {result.stderr}")
@@ -129,7 +156,7 @@ async def clone_project_repo(
     if data.access_token:
         clone_url = clone_url.replace("https://", f"https://{data.access_token}@")
 
-    clone_dir = Path(settings.UPLOAD_TEMP_DIR) / str(project_id) / "source"
+    clone_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
     await _clone_repo(clone_url, clone_dir, data.branch)
 
     project.source_type = SourceTypeEnum.git
