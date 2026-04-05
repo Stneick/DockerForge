@@ -1,0 +1,21 @@
+FROM {{ base_image | default("python:3.12-slim", true) }} AS builder
+
+WORKDIR /app
+
+COPY {{ dependency_file | default("requirements.txt", true) }} .
+RUN pip install --no-cache-dir -r {{ dependency_file | default("requirements.txt", true) }}
+
+COPY . .
+
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+USER appuser
+
+{% if port %}
+EXPOSE {{ port }}
+{% endif %}
+
+{% for env in env_vars %}
+ENV {{ env.key }}={{ env.value }}
+{% endfor %}
+
+CMD {{ startup_command | default("python main.py", true) | tojson }}
