@@ -1,0 +1,35 @@
+FROM {{ base_image | default("golang:1.22-alpine", true) }} AS builder
+
+WORKDIR /src
+
+RUN apk add --no-cache git ca-certificates
+
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w" \
+    -o /app/server .
+
+
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates tzdata && \
+    addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+COPY --from=builder /app/server .
+
+USER appuser
+
+{% for env in env_vars %}
+ENV {{ env.key }}={{ env.value }}
+{% endfor %}
+
+{% if port %}
+EXPOSE {{ port }}
+{% endif %}
+
+CMD ["./server"]

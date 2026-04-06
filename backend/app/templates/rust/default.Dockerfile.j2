@@ -1,0 +1,42 @@
+FROM {{ base_image | default("rust:1.77-slim-bookworm", true) }} AS builder
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends pkg-config libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY Cargo.toml Cargo.lock ./
+
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo build --release && \
+    rm -rf src target/release/deps/{{ binary_name | default("app", true) }}*
+
+COPY src ./src
+RUN cargo build --release
+
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    addgroup --system appgroup && \
+    adduser --system --ingroup appgroup appuser
+
+WORKDIR /app
+
+COPY --from=builder /app/target/release/{{ binary_name | default("app", true) }} .
+
+USER appuser
+
+{% for env in env_vars %}
+ENV {{ env.key }}={{ env.value }}
+{% endfor %}
+
+{% if port %}
+EXPOSE {{ port }}
+{% endif %}
+
+CMD ["./{{ binary_name | default('app', true) }}"]

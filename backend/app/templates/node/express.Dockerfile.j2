@@ -1,4 +1,4 @@
-FROM {{ base_image | default("node:20-alpine", true) }} AS builder
+FROM {{ base_image | default("node:20-alpine", true) }}
 
 WORKDIR /app
 
@@ -7,15 +7,16 @@ RUN npm ci --only=production
 
 COPY . .
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    chown -R appuser:appgroup /app
 USER appuser
-
-{% if port %}
-EXPOSE {{ port }}
-{% endif %}
 
 {% for env in env_vars %}
 ENV {{ env.key }}={{ env.value }}
 {% endfor %}
+
+ENV NODE_ENV=production
+
+EXPOSE {{ port | default(3000, true) }}
 
 CMD {{ startup_command | default("node index.js", true) | tojson }}

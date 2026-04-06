@@ -1,0 +1,33 @@
+FROM {{ base_image | default("node:20-alpine", true) }} AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+
+FROM {{ base_image | default("node:20-alpine", true) }} AS production
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY --from=builder /app/dist ./dist
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    chown -R appuser:appgroup /app
+USER appuser
+
+{% for env in env_vars %}
+ENV {{ env.key }}={{ env.value }}
+{% endfor %}
+
+ENV NODE_ENV=production
+
+EXPOSE {{ port | default(3000, true) }}
+
+CMD ["node", "{{ entry_point | default('dist/main', true) }}"]

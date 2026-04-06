@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+from app.core.languages import LANGUAGES
 from jinja2 import Environment, FileSystemLoader
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
@@ -11,41 +12,42 @@ env = Environment(
 )
 
 
-def _get_template_name(language: str, is_frontend: bool = False) -> str:
-    if language == "node" and is_frontend:
-        return "node-frontend.Dockerfile.j2"
-    if language == "node":
-        return "node-backend.Dockerfile.j2"
+def _get_template_path(language: str, framework: str) -> str:
+    lang_config = LANGUAGES.get(language)
+    if not lang_config:
+        raise ValueError(f"Unsupported language: {language}")
 
-    template_map = {
-        "python": "python.Dockerfile.j2",
-        "go": "go.Dockerfile.j2",
-        "java": "java.Dockerfile.j2",
-        "c": "c.Dockerfile.j2",
-        "cpp": "cpp.Dockerfile.j2",
-    }
-    name = template_map.get(language)
-    if not name:
-        raise ValueError(f"No template for language: {language}")
-    return name
+    for fw in lang_config["frameworks"]:
+        if fw["name"] == framework:
+            return fw["template"]
+
+    valid = [fw["name"] for fw in lang_config["frameworks"]]
+    raise ValueError(
+        f"Unsupported framework '{framework}' for {language}. Options: {valid}"
+    )
 
 
 def generate_dockerfile(
     language: str,
+    framework: str,
     dependency_file: str | None = None,
     startup_command: str | None = None,
+    entry_point: str | None = None,
+    binary_name: str | None = None,
+    build_output_dir: str | None = None,
     port: int | None = None,
     env_vars: list[Any] | None = None,
     base_image: str | None = None,
-    is_frontend: bool = False,
 ) -> str:
-    template_name = _get_template_name(language, is_frontend)
-    template = env.get_template(template_name)
+    template_path = _get_template_path(language, framework)
+    template = env.get_template(template_path)
     return template.render(
         base_image=base_image,
         dependency_file=dependency_file,
         startup_command=startup_command,
+        entry_point=entry_point,
+        binary_name=binary_name,
+        build_output_dir=build_output_dir,
         port=port,
         env_vars=env_vars or [],
-        is_frontend=is_frontend,
     )
