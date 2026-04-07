@@ -34,7 +34,7 @@ def _set_auth_cookies(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        path="/api/v1/auth/refresh",
+        path="/api/v1/auth",
         secure=settings.COOKIE_SECURE,
         samesite="lax",
         max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
@@ -93,7 +93,7 @@ async def logout(
     )
     response.delete_cookie(
         "refresh_token",
-        path="/api/v1/auth/refresh",
+        path="/api/v1/auth",
         secure=settings.COOKIE_SECURE,
         samesite="lax",
     )
