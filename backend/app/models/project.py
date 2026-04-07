@@ -23,6 +23,7 @@ class LanguageEnum(str, enum.Enum):
     java = "java"
     c = "c"
     cpp = "cpp"
+    rust = "rust"
 
 
 class SourceTypeEnum(str, enum.Enum):
@@ -47,7 +48,10 @@ class Project(Base):
     )
     dependency_file: Mapped[str | None] = mapped_column(String(255), nullable=True)
     startup_command: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    is_frontend: Mapped[bool] = mapped_column(default=False, nullable=False)
+    framework: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    entry_point: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    binary_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    build_output_dir: Mapped[str | None] = mapped_column(String(255), nullable=True)
     env_vars: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True)
     port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_type: Mapped[SourceTypeEnum] = mapped_column(
