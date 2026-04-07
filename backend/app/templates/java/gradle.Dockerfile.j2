@@ -1,0 +1,33 @@
+FROM {{ base_image | default("eclipse-temurin:21-jdk-alpine", true) }} AS builder
+
+WORKDIR /app
+
+COPY build.gradle* settings.gradle* gradlew ./
+COPY gradle ./gradle
+RUN chmod +x gradlew && \
+    ./gradlew dependencies --no-daemon
+
+COPY src ./src
+RUN ./gradlew clean build -x test --no-daemon
+
+
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+RUN chown appuser:appgroup app.jar
+USER appuser
+
+{% for env in env_vars %}
+ENV {{ env.key }}={{ env.value }}
+{% endfor %}
+
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+
+EXPOSE {{ port | default(8080, true) }}
+
+CMD ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

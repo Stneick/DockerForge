@@ -1,0 +1,32 @@
+FROM {{ base_image | default("gcc:13-bookworm", true) }} AS builder
+
+WORKDIR /app
+
+COPY . .
+
+RUN make -j$(nproc)
+
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    addgroup --system appgroup && \
+    adduser --system --ingroup appgroup appuser
+
+WORKDIR /app
+
+COPY --from=builder /app/{{ binary_name | default("app", true) }} .
+
+USER appuser
+
+{% for env in env_vars %}
+ENV {{ env.key }}={{ env.value }}
+{% endfor %}
+
+{% if port %}
+EXPOSE {{ port }}
+{% endif %}
+
+CMD ["./{{ binary_name | default('app', true) }}"]

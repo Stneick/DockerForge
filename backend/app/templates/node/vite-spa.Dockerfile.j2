@@ -1,0 +1,33 @@
+FROM {{ base_image | default("node:20-alpine", true) }} AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+{% for env in env_vars %}
+ARG {{ env.key }}={{ env.value }}
+ENV {{ env.key }}=${{ '{' }}{{ env.key }}{{ '}' }}
+{% endfor %}
+
+RUN {{ startup_command | default("npm run build", true) }}
+
+
+FROM nginx:stable-alpine
+
+COPY --from=builder /app/{{ build_output_dir | default("dist", true) }} /usr/share/nginx/html
+
+RUN printf 'server {\n\
+    listen {{ port | default(80, true) }};\n\
+    location / {\n\
+        root /usr/share/nginx/html;\n\
+        index index.html;\n\
+        try_files $uri $uri/ /index.html;\n\
+    }\n\
+}\n' > /etc/nginx/conf.d/default.conf
+
+EXPOSE {{ port | default(80, true) }}
+
+CMD ["nginx", "-g", "daemon off;"]
