@@ -42,6 +42,8 @@ class UpdateProjectRequest(BaseModel):
     entry_point: str | None = None
     binary_name: str | None = None
     build_output_dir: str | None = None
+    build_package: str | None = None
+    base_image: str | None = None
     env_vars: list[EnvVar] | None = None
     port: int | None = None
 
@@ -60,6 +62,8 @@ class Project(BaseModel):
     entry_point: str | None = None
     binary_name: str | None = None
     build_output_dir: str | None = None
+    build_package: str | None = None
+    base_image: str | None = None
     env_vars: list[EnvVar] = []
     port: int | None
     source_type: str  # "upload" | "git" | "none"
@@ -90,6 +94,8 @@ class SourceAnalysisResponse(BaseModel):
     detected_entry_point: str | None = None
     detected_binary_name: str | None = None
     detected_build_output_dir: str | None = None
+    detected_build_package: str | None = None
+    detected_base_image: str | None = None
     detected_port: int | None = None
     detected_files: list[str] = []
     has_existing_dockerfile: bool = False
@@ -112,12 +118,14 @@ class DockerfileOverrides(BaseModel):
     entry_point: str | None = None
     binary_name: str | None = None
     build_output_dir: str | None = None
+    build_package: str | None = None
     port: int | None = None
     env_vars: list[EnvVar] | None = None
 
 
 class DockerfilePreviewResponse(BaseModel):
     dockerfile_content: str
+    dockerignore_content: str
     base_image: str
     estimated_layers: int
     warnings: list[str]

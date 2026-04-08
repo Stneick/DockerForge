@@ -52,6 +52,8 @@ class Project(Base):
     entry_point: Mapped[str | None] = mapped_column(String(255), nullable=True)
     binary_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     build_output_dir: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    build_package: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    base_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
     env_vars: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True)
     port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_type: Mapped[SourceTypeEnum] = mapped_column(

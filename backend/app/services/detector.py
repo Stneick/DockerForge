@@ -156,10 +156,15 @@ def _detect_node(source_dir: Path) -> dict:
     scripts = data.get("scripts", {})
 
     if "@nestjs/core" in deps:
+
+        entry = "dist/src/main"
+        start_prod = scripts.get("start:prod", "")
+        if "dist/main" in start_prod and "dist/src/main" not in start_prod:
+            entry = "dist/main"
         return {
             "framework": "nestjs",
-            "entry_point": "dist/main",
-            "startup_command": "node dist/main",
+            "entry_point": entry,
+            "startup_command": f"node {entry}",
             "port": 3000,
         }
 
@@ -179,7 +184,7 @@ def _detect_node(source_dir: Path) -> dict:
             "startup_command": "npm run build",
             "build_output_dir": output_dir,
             "port": 80,
-            "note": "Multi-stage build: npm run build then static files served by nginx",
+            "note": "Static files served by Nginx",
         }
 
     # Express / generic backend Node
@@ -202,21 +207,64 @@ def _detect_node(source_dir: Path) -> dict:
 
 def _detect_go(source_dir: Path) -> dict:
     binary_name = "server"
+    go_version = None
+    build_package = "."
+
     gomod = source_dir / "go.mod"
     if gomod.exists():
         try:
-            first_line = gomod.read_text().splitlines()[0]
+            content = gomod.read_text()
+            lines = content.splitlines()
+            # Parse module name from first line
+            first_line = lines[0]
             parts = first_line.split()
             if len(parts) >= 2:
                 binary_name = parts[-1].split("/")[-1]
+            # Parse go version
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("go ") and not stripped.startswith("go."):
+                    go_version = stripped.split()[1]
+                    break
         except (IndexError, OSError) as err:
             logger.error(f"Failed to parse go.mod: {err}")
+
+    cmd_dir = source_dir / "cmd"
+    if cmd_dir.is_dir():
+        subdirs = [d for d in cmd_dir.iterdir() if d.is_dir()]
+        if len(subdirs) == 1:
+            # Single cmd entry
+            build_package = f"./cmd/{subdirs[0].name}"
+            binary_name = subdirs[0].name
+            logger.debug(f"Go: detected cmd/ layout → build_package={build_package}")
+        elif len(subdirs) > 1:
+            # Multiple entries, look for one matching module name, or pick first
+            for sd in subdirs:
+                if sd.name == binary_name:
+                    build_package = f"./cmd/{sd.name}"
+                    break
+            else:
+                build_package = f"./cmd/{subdirs[0].name}"
+                binary_name = subdirs[0].name
+            logger.debug(f"Go: multiple cmd/ entries, picked {build_package}")
+
+    base_image = None
+    if go_version:
+        # go_version can be "1.24.0" or "1.22", use major.minor for image tag
+        parts = go_version.split(".")
+        if len(parts) >= 2:
+            base_image = f"golang:{parts[0]}.{parts[1]}-alpine"
+            logger.debug(
+                f"Go: using base image {base_image} from go.mod version {go_version}"
+            )
 
     return {
         "framework": "default",
         "binary_name": binary_name,
+        "build_package": build_package,
         "startup_command": f"./{binary_name}",
         "port": 8080,
+        "base_image": base_image,
     }
 
 
@@ -372,6 +420,8 @@ def detect_language(source_dir: Path) -> SourceAnalysisResponse:
         detected_entry_point=result.get("entry_point"),
         detected_binary_name=result.get("binary_name"),
         detected_build_output_dir=result.get("build_output_dir"),
+        detected_build_package=result.get("build_package"),
+        detected_base_image=result.get("base_image"),
         detected_port=result.get("port"),
         detected_files=list(files["root_files"]),
         has_existing_dockerfile="Dockerfile" in files["root_files"],
