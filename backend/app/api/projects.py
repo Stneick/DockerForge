@@ -127,21 +127,30 @@ async def preview_dockerfile(
         overrides = DockerfileOverrides()
 
     language = overrides.language or project.language
-    if language is None:
+    framework = overrides.framework or project.framework
+    if language is None or framework is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Language must be set on the project or provided in overrides.",
+            detail="Language and framework must be set on the project or provided in overrides.",
         )
 
-    dockerfile_content = generate_dockerfile(
-        language=language.value,
-        dependency_file=overrides.dependency_file or project.dependency_file,
-        startup_command=overrides.startup_command or project.startup_command,
-        port=overrides.port or project.port,
-        env_vars=overrides.env_vars or project.env_vars,
-        base_image=overrides.base_image,
-        is_frontend=project.is_frontend,
-    )
+    try:
+        dockerfile_content = generate_dockerfile(
+            language=language.value if hasattr(language, "value") else language,
+            framework=framework,
+            dependency_file=overrides.dependency_file or project.dependency_file,
+            startup_command=overrides.startup_command or project.startup_command,
+            entry_point=overrides.entry_point or project.entry_point,
+            binary_name=overrides.binary_name or project.binary_name,
+            build_output_dir=overrides.build_output_dir or project.build_output_dir,
+            port=overrides.port or project.port,
+            env_vars=overrides.env_vars or project.env_vars,
+            base_image=overrides.base_image,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
 
     return DockerfilePreviewResponse(
         dockerfile_content=dockerfile_content,
