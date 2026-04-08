@@ -36,8 +36,12 @@ class UpdateProjectRequest(BaseModel):
     name: str | None = None
     description: str | None = None
     language: SupportedLanguage | None = None
+    framework: str | None = None
     dependency_file: str | None = None
     startup_command: str | None = None
+    entry_point: str | None = None
+    binary_name: str | None = None
+    build_output_dir: str | None = None
     env_vars: list[EnvVar] | None = None
     port: int | None = None
 
@@ -52,7 +56,10 @@ class Project(BaseModel):
     language: SupportedLanguage | None
     dependency_file: str | None
     startup_command: str | None
-    is_frontend: bool = False
+    framework: str | None = None
+    entry_point: str | None = None
+    binary_name: str | None = None
+    build_output_dir: str | None = None
     env_vars: list[EnvVar] = []
     port: int | None
     source_type: str  # "upload" | "git" | "none"
@@ -76,12 +83,17 @@ class ProjectListResponse(BaseModel):
 
 class SourceAnalysisResponse(BaseModel):
     detected_language: SupportedLanguage | None = None
+    detected_framework: str | None = None
     confidence: float = 0.0
     detected_dependency_file: str | None = None
     suggested_startup_command: str | None = None
+    detected_entry_point: str | None = None
+    detected_binary_name: str | None = None
+    detected_build_output_dir: str | None = None
+    detected_port: int | None = None
     detected_files: list[str] = []
     has_existing_dockerfile: bool = False
-    is_frontend: bool | None = None
+    note: str | None = None
     warnings: list[str] = []
 
 
@@ -94,11 +106,14 @@ class CloneRequest(BaseModel):
 class DockerfileOverrides(BaseModel):
     base_image: str | None = None
     language: SupportedLanguage | None = None
+    framework: str | None = None
     dependency_file: str | None = None
     startup_command: str | None = None
+    entry_point: str | None = None
+    binary_name: str | None = None
+    build_output_dir: str | None = None
     port: int | None = None
     env_vars: list[EnvVar] | None = None
-    multi_stage: bool = True
 
 
 class DockerfilePreviewResponse(BaseModel):

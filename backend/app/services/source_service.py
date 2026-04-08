@@ -10,7 +10,7 @@ from uuid import UUID
 
 import aiofiles
 from app.config import settings
-from app.core.constants import ALLOWED_EXTENSIONS, LANGUAGE_INDICATORS
+from app.core.constants import ALLOWED_EXTENSIONS
 from app.models.project import LanguageEnum, SourceTypeEnum
 from app.models.user import User
 from app.schemas.project import (
@@ -108,14 +108,20 @@ async def upload_project_source(
     project.source_uploaded = True
     if analysis.detected_language:
         project.language = LanguageEnum(analysis.detected_language.value)
-        project.port = LANGUAGE_INDICATORS[analysis.detected_language.value][
-            "default_port"
-        ]
+    if analysis.detected_framework:
+        project.framework = analysis.detected_framework
     if analysis.detected_dependency_file:
         project.dependency_file = analysis.detected_dependency_file
     if analysis.suggested_startup_command:
         project.startup_command = analysis.suggested_startup_command
-    project.is_frontend = analysis.is_frontend or False
+    if analysis.detected_entry_point:
+        project.entry_point = analysis.detected_entry_point
+    if analysis.detected_binary_name:
+        project.binary_name = analysis.detected_binary_name
+    if analysis.detected_build_output_dir:
+        project.build_output_dir = analysis.detected_build_output_dir
+    if analysis.detected_port:
+        project.port = analysis.detected_port
     await db.commit()
 
     return analysis
@@ -175,17 +181,23 @@ async def clone_project_repo(
 
     project.source_type = SourceTypeEnum.git
     project.source_uploaded = True
-    project.repo_url = data.repo_url  # store original URL, not the one with token
+    project.repo_url = data.repo_url
     if analysis.detected_language:
         project.language = LanguageEnum(analysis.detected_language.value)
-        project.port = LANGUAGE_INDICATORS[analysis.detected_language.value][
-            "default_port"
-        ]
+    if analysis.detected_framework:
+        project.framework = analysis.detected_framework
     if analysis.detected_dependency_file:
         project.dependency_file = analysis.detected_dependency_file
     if analysis.suggested_startup_command:
         project.startup_command = analysis.suggested_startup_command
-    project.is_frontend = analysis.is_frontend or False
+    if analysis.detected_entry_point:
+        project.entry_point = analysis.detected_entry_point
+    if analysis.detected_binary_name:
+        project.binary_name = analysis.detected_binary_name
+    if analysis.detected_build_output_dir:
+        project.build_output_dir = analysis.detected_build_output_dir
+    if analysis.detected_port:
+        project.port = analysis.detected_port
     await db.commit()
 
     return analysis

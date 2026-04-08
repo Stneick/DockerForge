@@ -33,16 +33,4 @@ class SupportedLanguage(str, Enum):
     JAVA = "java"
     CPP = "cpp"
     C = "c"
-
-
-class LanguageConfig(BaseModel):
-    language: SupportedLanguage
-    display_name: str
-    default_base_image: str
-    dependency_files: list[str]
-    default_startup_command: str
-    supports_multi_stage: bool
-
-
-class LanguageListResponse(BaseModel):
-    languages: list[LanguageConfig]
+    RUST = "rust"
