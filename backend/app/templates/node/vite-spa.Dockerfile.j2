@@ -1,4 +1,4 @@
-FROM {{ base_image | default("node:20-alpine", true) }} AS builder
+FROM {{ base_image | default("node:20-slim", true) }} AS builder
 
 WORKDIR /app
 

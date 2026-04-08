@@ -120,6 +120,10 @@ async def upload_project_source(
         project.binary_name = analysis.detected_binary_name
     if analysis.detected_build_output_dir:
         project.build_output_dir = analysis.detected_build_output_dir
+    if analysis.detected_build_package:
+        project.build_package = analysis.detected_build_package
+    if analysis.detected_base_image:
+        project.base_image = analysis.detected_base_image
     if analysis.detected_port:
         project.port = analysis.detected_port
     await db.commit()
@@ -196,6 +200,10 @@ async def clone_project_repo(
         project.binary_name = analysis.detected_binary_name
     if analysis.detected_build_output_dir:
         project.build_output_dir = analysis.detected_build_output_dir
+    if analysis.detected_build_package:
+        project.build_package = analysis.detected_build_package
+    if analysis.detected_base_image:
+        project.base_image = analysis.detected_base_image
     if analysis.detected_port:
         project.port = analysis.detected_port
     await db.commit()

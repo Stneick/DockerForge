@@ -14,7 +14,7 @@ from app.schemas.project import (
     SourceAnalysisResponse,
     UpdateProjectRequest,
 )
-from app.services.dockerfile_generator import generate_dockerfile
+from app.services.dockerfile_generator import generate_dockerfile, generate_dockerignore
 from app.services.project_service import (
     _get_project_or_404,
     create_project,
@@ -134,27 +134,33 @@ async def preview_dockerfile(
             detail="Language and framework must be set on the project or provided in overrides.",
         )
 
+    lang_str = language.value if hasattr(language, "value") else language
+
     try:
         dockerfile_content = generate_dockerfile(
-            language=language.value if hasattr(language, "value") else language,
+            language=lang_str,
             framework=framework,
             dependency_file=overrides.dependency_file or project.dependency_file,
             startup_command=overrides.startup_command or project.startup_command,
             entry_point=overrides.entry_point or project.entry_point,
             binary_name=overrides.binary_name or project.binary_name,
             build_output_dir=overrides.build_output_dir or project.build_output_dir,
+            build_package=overrides.build_package or project.build_package,
             port=overrides.port or project.port,
             env_vars=overrides.env_vars or project.env_vars,
-            base_image=overrides.base_image,
+            base_image=overrides.base_image or project.base_image,
         )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         ) from e
 
+    dockerignore_content = generate_dockerignore(lang_str)
+
     return DockerfilePreviewResponse(
         dockerfile_content=dockerfile_content,
-        base_image=overrides.base_image or "default",
+        dockerignore_content=dockerignore_content,
+        base_image=overrides.base_image or project.base_image or "default",
         estimated_layers=dockerfile_content.count("\n"),
         warnings=[],
     )

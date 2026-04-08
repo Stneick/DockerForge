@@ -104,7 +104,7 @@ LANGUAGES: dict[str, LanguageConfig] = {
                 "default_entry_point": None,
                 "default_startup_command": "npm run build",
                 "default_port": 80,
-                "note": "Multi-stage build: npm run build then static files served by nginx",
+                "note": "Static files served by Nginx",
                 "detection_deps": ["vite", "react", "vue", "svelte", "@angular/core"],
                 "detection_files": ["vite.config.ts", "vite.config.js"],
             },
