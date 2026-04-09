@@ -13,3 +13,4 @@ python-multipart
 loguru
 aiofiles
 types-aiofiles
+arq

@@ -1,7 +1,9 @@
+import re
 from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote_plus
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,9 +19,13 @@ class Settings(BaseSettings):
     # Database
     DB_USER: str
     DB_PASSWORD: str
-    DB_HOST: str = "localhost"
+    DB_HOST: str = "postgres"
     DB_PORT: int = 5432
     DB_NAME: str
+
+    # Redis
+    REDIS_HOST: str = "redis"
+    REDIS_PORT: int = 6379
 
     # JWT
     JWT_SECRET_KEY: str
@@ -45,6 +51,21 @@ class Settings(BaseSettings):
         env_file=".env", case_sensitive=True, extra="ignore"
     )
 
+    @field_validator("BUILD_MEMORY_LIMIT")
+    @classmethod
+    def validate_memory(cls, v: str) -> str:
+        pattern = r"^\d+(k|m|g)$"
+        if not re.match(pattern, v.lower()):
+            raise ValueError("BUILD_MEMORY_LIMIT must be like '512m', '1g', or '128k'")
+        return v.lower()
+
+    @field_validator("BUILD_CPU_LIMIT")
+    @classmethod
+    def validate_cpu(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("BUILD_CPU_LIMIT must be > 0")
+        return v
+
     @property
     def DATABASE_URL(self) -> str:
         return (
@@ -56,6 +77,19 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+
+    def parse_memory(self, mem_str: str) -> int:
+        units = {"k": 1024, "m": 1024**2, "g": 1024**3}
+        return int(mem_str[:-1]) * units[mem_str[-1].lower()]
+
+    @property
+    def container_limits(self) -> dict:
+        mem = self.parse_memory(self.BUILD_MEMORY_LIMIT)
+        return {
+            "memory": mem,
+            "memswap": mem,
+            # "nano_cpus": int(self.BUILD_CPU_LIMIT * 1e9),
+        }
 
 
 @lru_cache

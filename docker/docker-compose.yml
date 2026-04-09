@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dockerforge}
+      POSTGRES_USER: ${POSTGRES_USER:-dockerforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dockerforge}
+    ports:
+      - 5432:5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Message Broker
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  # Backend
+  dockerforge-api:
+    build:
+      context: ../backend
+      dockerfile: ../docker/Dockerfile.backend
+    env_file:
+      - ../backend/.env
+    command: fastapi dev --host 0.0.0.0
+    ports:
+      - "8000:8000"
+    volumes:
+      - project_data:/app/data/projects
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    build:
+      context: ../backend
+      dockerfile: ../docker/Dockerfile.backend
+    env_file:
+      - ../backend/.env
+    command: arq app.worker.WorkerSettings
+    volumes:
+      - project_data:/app/data/projects
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  pgdata:
+  redisdata:
+  project_data:
