@@ -44,13 +44,14 @@ class Build(Base):
     )
     image_tag: Mapped[str | None] = mapped_column(String(255), nullable=True)
     dockerfile_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dockerignore_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     trigger_type: Mapped[TriggerTypeEnum] = mapped_column(
         Enum(TriggerTypeEnum), nullable=False
     )
     build_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     image_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     layers: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
-    logs: Mapped[str | None] = mapped_column(Text, nullable=True)
+    logs: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
