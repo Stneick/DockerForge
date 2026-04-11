@@ -122,45 +122,38 @@ async def preview_dockerfile(
     db: AsyncSession = Depends(get_db),
 ):
     project = await _get_project_or_404(project_id, current_user, db)
+    project_schema = Project.model_validate(project)
 
-    if overrides is None:
-        overrides = DockerfileOverrides()
+    if overrides is not None:
+        override_data = overrides.model_dump(exclude_none=True, exclude_unset=True)
+        project_schema = project_schema.model_copy(update=override_data)
 
-    language = overrides.language or project.language
-    framework = overrides.framework or project.framework
-    if language is None or framework is None:
+    if not project_schema.language or not project_schema.framework:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Language and framework must be set on the project or provided in overrides.",
         )
 
-    lang_str = language.value if hasattr(language, "value") else language
-
     try:
-        dockerfile_content = generate_dockerfile(
-            language=lang_str,
-            framework=framework,
-            dependency_file=overrides.dependency_file or project.dependency_file,
-            startup_command=overrides.startup_command or project.startup_command,
-            entry_point=overrides.entry_point or project.entry_point,
-            binary_name=overrides.binary_name or project.binary_name,
-            build_output_dir=overrides.build_output_dir or project.build_output_dir,
-            build_package=overrides.build_package or project.build_package,
-            port=overrides.port or project.port,
-            env_vars=overrides.env_vars or project.env_vars,
-            base_image=overrides.base_image or project.base_image,
-        )
+        dockerfile_content = generate_dockerfile(project=project_schema)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         ) from e
 
+    lang_str = (
+        project_schema.language.value
+        if hasattr(project_schema.language, "value")
+        else project_schema.language
+    )
     dockerignore_content = generate_dockerignore(lang_str)
 
     return DockerfilePreviewResponse(
         dockerfile_content=dockerfile_content,
         dockerignore_content=dockerignore_content,
-        base_image=overrides.base_image or project.base_image or "default",
+        base_image=(overrides.base_image if overrides else None)
+        or project.base_image
+        or "default",
         estimated_layers=dockerfile_content.count("\n"),
         warnings=[],
     )
