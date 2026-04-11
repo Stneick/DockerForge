@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import re
 from functools import lru_cache
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import quote_plus
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if TYPE_CHECKING:
+    from docker.api.build import _ContainerLimits
 
 
 class Settings(BaseSettings):
@@ -83,7 +88,7 @@ class Settings(BaseSettings):
         return int(mem_str[:-1]) * units[mem_str[-1].lower()]
 
     @property
-    def container_limits(self) -> dict:
+    def container_limits(self) -> _ContainerLimits:
         mem = self.parse_memory(self.BUILD_MEMORY_LIMIT)
         return {
             "memory": mem,
