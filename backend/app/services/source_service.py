@@ -131,25 +131,43 @@ async def upload_project_source(
     return analysis
 
 
-async def _clone_repo(repo_url: str, clone_dir: Path, branch: str = "main"):
+async def _clone_repo(
+    repo_url: str,
+    clone_dir: Path,
+    branch: str = "main",
+    access_token: str | None = None,
+):
     if clone_dir.exists():
         _force_rmtree(clone_dir)
 
+    args = ["git"]
+    if access_token:
+        args += [
+            "-c",
+            f"http.extraHeader=Authorization: Bearer {access_token}",
+        ]
+    args += [
+        "clone",
+        "--depth",
+        "1",
+        "--single-branch",
+        "--branch",
+        branch,
+        "--",  # everything after this is positional
+        repo_url,
+        str(clone_dir),
+    ]
+
     def _run_clone():
         return subprocess.run(
-            [
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                "--branch",
-                branch,
-                repo_url,
-                str(clone_dir),
-            ],
+            args,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=settings.GIT_CLONE_TIMEOUT_SECONDS,
+            env={
+                **os.environ,
+                "GIT_TERMINAL_PROMPT": "0",
+            },
         )
 
     try:
@@ -174,12 +192,13 @@ async def clone_project_repo(
 ) -> SourceAnalysisResponse:
     project = await _get_project_or_404(project_id, user, db)
 
-    clone_url = data.repo_url
-    if data.access_token:
-        clone_url = clone_url.replace("https://", f"https://{data.access_token}@")
-
     clone_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
-    await _clone_repo(clone_url, clone_dir, data.branch)
+    await _clone_repo(
+        data.repo_url,
+        clone_dir,
+        data.branch,
+        access_token=data.access_token,
+    )
 
     analysis = await asyncio.to_thread(detect_language, clone_dir)
 

@@ -1,9 +1,13 @@
+import re
 from datetime import datetime
+from urllib.parse import urlparse
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.schemas.common import Pagination, SupportedLanguage
+
+_BRANCH_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 
 
 class EnvVar(BaseModel):
@@ -107,6 +111,36 @@ class CloneRequest(BaseModel):
     repo_url: str
     branch: str = "main"
     access_token: str | None = None
+
+    @field_validator("repo_url")
+    @classmethod
+    def _validate_repo_url(cls, v: str) -> str:
+        parsed = urlparse(v)
+        if parsed.scheme != "https":
+            raise ValueError("repo_url must be an https:// GitHub URL")
+        if parsed.hostname not in ("github.com", "www.github.com"):
+            raise ValueError("only github.com repositories are supported")
+        if not parsed.path.strip("/"):
+            raise ValueError("repo_url must point to a repository")
+        return v
+
+    @field_validator("branch")
+    @classmethod
+    def validate_branch(cls, v: str) -> str:
+        if not v or v.startswith("-") or ".." in v or not _BRANCH_RE.match(v):
+            raise ValueError("invalid branch name")
+        return v
+
+    @field_validator("access_token")
+    @classmethod
+    def _validate_token(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if not v or len(v) > 1024:
+            raise ValueError("invalid access_token")
+        if any(c in v for c in "\r\n\x00"):
+            raise ValueError("access_token contains invalid characters")
+        return v
 
 
 class DockerfileOverrides(BaseModel):
