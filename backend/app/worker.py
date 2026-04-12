@@ -60,9 +60,17 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                     f"Project source directory not found: {source_dir}"
                 )
 
+            allowed_root = source_dir.resolve()
             children = list(source_dir.iterdir())
             if len(children) == 1 and children[0].is_dir():
-                source_dir = children[0]
+                candidate = children[0].resolve()
+                if not candidate.is_relative_to(allowed_root):
+                    logger.error(
+                        f"Symlink escape blocked for build {build_id}: "
+                        f"{children[0]} -> {candidate} (root: {allowed_root})"
+                    )
+                    raise ValueError("Invalid project source.")
+                source_dir = candidate
 
             formatted_build_args = {}
             if data.build_args:
@@ -123,24 +131,42 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
 
             build_record.logs = logs
             db.add(build_record)
-            await db.commit()
 
-            final_payload = json.dumps(
-                {
-                    "status": build_record.status,
-                    "log": f"--- Build finished with status: {build_record.status.upper()} ---",
-                }
-            )
-            await redis.publish(f"build:{build_id}", final_payload)
+            final_status = build_record.status
+
+            try:
+                await db.commit()
+            except Exception as commit_err:
+                logger.error(
+                    f"Failed to persist final state for build {build_id}: {commit_err}"
+                )
+
+            try:
+                final_payload = json.dumps(
+                    {
+                        "status": final_status,
+                        "log": f"--- Build finished with status: {final_status.upper()} ---",
+                    }
+                )
+                await redis.publish(f"build:{build_id}", final_payload)
+            except Exception as pub_err:
+                logger.error(
+                    f"Failed to publish final status for build {build_id}: {pub_err}"
+                )
 
             logger.info(
-                f"Background build {build_id} finished with status: {build_record.status}"
+                f"Background build {build_id} finished with status: {final_status}"
             )
 
-        return f"Build {build_id} finished with status: {build_record.status}"
+        return f"Build {build_id} finished with status: {final_status}"
 
 
 # ARQ Configuration
 class WorkerSettings:
     functions = [run_build_task]
     redis_settings = RedisSettings(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
+    max_jobs = settings.BUILD_MAX_CONCURRENT
+    job_timeout = settings.BUILD_TIMEOUT_SECONDS + 60  # buffer for cleanup
+    max_tries = 1
+    keep_result = 0
+    allow_abort_jobs = True
