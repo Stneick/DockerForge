@@ -81,8 +81,10 @@ async def upload_project_source(
         )
 
     archive_type = _validate_archive(file.filename)
-    temp_path = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / file.filename
-    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    project_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id)
+    project_dir.mkdir(parents=True, exist_ok=True)
+    suffix = ".zip" if archive_type == "zip" else ".tar.gz"
+    temp_path = project_dir / f"upload{suffix}"
 
     total_size = 0
     async with aiofiles.open(temp_path, "wb") as f:
