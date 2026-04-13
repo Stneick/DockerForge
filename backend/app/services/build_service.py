@@ -7,6 +7,7 @@ from uuid import UUID
 import redis.asyncio as redis_async
 from app.config import settings
 from app.models.build import Build as BuildModel
+from app.models.build import BuildStatusEnum, TriggerTypeEnum
 from app.models.user import User
 from app.schemas.build import Build as BuildSchema
 from app.schemas.build import (
@@ -49,11 +50,11 @@ async def trigger_build(
 
     new_build = BuildModel(
         project_id=project.id,
-        status="pending",
+        status=BuildStatusEnum.pending,
         image_tag=data.image_tag,
         dockerfile_content=dockerfile_content,
         dockerignore_content=dockerignore_content,
-        trigger_type="manual",
+        trigger_type=TriggerTypeEnum.manual,
         build_config={
             "language": project.language,
             "dependency_file": project.dependency_file,
@@ -74,12 +75,21 @@ async def trigger_build(
 
     request_data = data.model_dump()
 
-    arq_pool = request.app.state.arq_pool
-    await arq_pool.enqueue_job(
-        "run_build_task",  # name of the function in worker.py
-        new_build.id,
-        request_data,
-    )
+    try:
+        arq_pool = request.app.state.arq_pool
+        await arq_pool.enqueue_job(
+            "run_build_task",  # name of the function in worker.py
+            new_build.id,
+            request_data,
+        )
+    except Exception as e:
+        logger.error(f"Failed to enqueue build {new_build.id}: {e}")
+        new_build.status = BuildStatusEnum.failed
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Build queue unavailable. Please try again.",
+        ) from e
 
     return new_build
 
