@@ -42,7 +42,6 @@ class Settings(BaseSettings):
     BUILD_TIMEOUT_SECONDS: int = 600
     BUILD_MAX_CONCURRENT: int = 2
     BUILD_MEMORY_LIMIT: str = "512m"
-    BUILD_CPU_LIMIT: float = 1.0
     IMAGE_TTL_SECONDS: int = 3600
 
     # Upload
@@ -93,7 +92,6 @@ class Settings(BaseSettings):
         return {
             "memory": mem,
             "memswap": mem,
-            # "nano_cpus": int(self.BUILD_CPU_LIMIT * 1e9),
         }
 
 

@@ -77,10 +77,6 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
             if ":" not in clean_tag:
                 clean_tag = f"{clean_tag}:latest"
 
-            logger.info(
-                f"Final sanitized tag being passed to Docker: {repr(clean_tag)}"
-            )
-
             image_id, log_lines = await asyncio.to_thread(
                 build_image,
                 source_dir=str(source_dir),
@@ -136,6 +132,10 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                 }
             )
             await redis.publish(f"build:{build_id}", final_payload)
+
+            logger.info(
+                f"Background build {build_id} finished with status: {build_record.status}"
+            )
 
         return f"Build {build_id} finished with status: {build_record.status}"
 
