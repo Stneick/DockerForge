@@ -270,10 +270,8 @@ async def stream_build_events(
                         data_str = message["data"].decode("utf-8")
                         yield f"data: {data_str}\n\n"
 
-                        if (
-                            '"status":"success"' in data_str
-                            or '"status":"failed"' in data_str
-                        ):
+                        parsed = json.loads(data_str)
+                        if parsed.get("status") in {"success", "failed", "cancelled"}:
                             break
 
                 except ConnectionError as e:
