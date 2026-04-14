@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # Upload
     MAX_UPLOAD_SIZE_MB: int = 100
     PROJECTS_SOURCE_DIR: str = "/var/lib/dockerforge/projects"
+    GIT_CLONE_TIMEOUT_SECONDS: int = 120
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000"
