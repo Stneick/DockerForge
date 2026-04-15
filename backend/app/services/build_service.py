@@ -215,21 +215,6 @@ async def stream_build_events(
         )
 
     async def event_generator():
-        if build.status in ["success", "failed", "cancelled"]:
-            final_payload = json.dumps(
-                {
-                    "status": build.status,
-                    "log": {
-                        "line": 0,
-                        "message": f"--- Build previously finished with status: {build.status.upper()} ---",
-                        "stream": "stdout",
-                        "timestamp": datetime.now(UTC).isoformat(),
-                    },
-                }
-            )
-            yield f"data: {final_payload}\n\n"
-            return
-
         redis_client = redis_async.Redis(
             host=settings.REDIS_HOST, port=settings.REDIS_PORT
         )
@@ -238,7 +223,7 @@ async def stream_build_events(
         try:
             await pubsub.subscribe(f"build:{build_id}")
 
-            # Re-check: build may have finished before subscribing
+            # Replay: build may have finished before the request arrived or before subscribing
             await db.refresh(build)
             if build.status in ["success", "failed", "cancelled"]:
                 for log in build.logs or []:
