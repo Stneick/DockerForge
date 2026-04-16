@@ -125,6 +125,27 @@ async def stream_build_events(
         try:
             await pubsub.subscribe(f"build:{build_id}")
 
+            # Re-check: build may have finished before subscribing
+            await db.refresh(build)
+            if build.status in ["success", "failed", "cancelled"]:
+                for log in build.logs or []:
+                    replay_payload = json.dumps({"status": "building", "log": log})
+                    yield f"data: {replay_payload}\n\n"
+
+                final_payload = json.dumps(
+                    {
+                        "status": build.status,
+                        "log": {
+                            "line": 0,
+                            "message": f"--- Build finished with status: {build.status.upper()} ---",
+                            "stream": "stdout",
+                            "timestamp": datetime.now(UTC).isoformat(),
+                        },
+                    }
+                )
+                yield f"data: {final_payload}\n\n"
+                return
+
             while True:
                 if await request.is_disconnected():
                     break
