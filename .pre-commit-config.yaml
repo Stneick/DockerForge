@@ -17,12 +17,14 @@ repos:
       - id: black
         language_version: python3.12
         files: ^backend/
+        exclude: ^backend/alembic/versions/
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.4
     hooks:
       - id: ruff
         files: ^backend/
+        exclude: ^backend/alembic/versions/
         args:
           - --fix
           - --select=E,F,I,UP,B,SIM

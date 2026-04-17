@@ -73,8 +73,8 @@ class Project(BaseModel):
     source_type: str  # "upload" | "git" | "none"
     repo_url: str | None
     source_uploaded: bool
-    total_builds: int = 0
-    last_build_at: datetime | None = None
+    total_builds: int
+    last_build_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

@@ -72,3 +72,9 @@ class Project(Base):
     builds: Mapped[list[Build]] = relationship(
         "Build", back_populates="project", cascade="all, delete-orphan"
     )
+    total_builds: Mapped[int] = mapped_column(
+        default=0, server_default="0", nullable=False
+    )
+    last_build_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
