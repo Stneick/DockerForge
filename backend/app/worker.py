@@ -21,6 +21,12 @@ from app.services.docker_client import build_image, get_image_layers, get_image_
 from docker.errors import BuildError
 
 
+def _slugify_project_name(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9_.-]+", "-", name.lower())
+    slug = re.sub(r"-+", "-", slug).strip("-._")
+    return slug
+
+
 async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
 
     redis = ctx["redis"]
@@ -79,10 +85,14 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                 for arg in data.build_args:
                     formatted_build_args[arg.key] = arg.value
 
-            raw_tag: str = build_record.image_tag or ""
-            if not raw_tag.strip() or raw_tag.lower() == "none":
-                raw_tag = project_record.name
-            clean_tag = re.sub(r"[^a-z0-9_./:-]", "", raw_tag.lower())
+            raw_tag = (build_record.image_tag or "").strip()
+            if not raw_tag or raw_tag.lower() == "none":
+                clean_tag = (
+                    _slugify_project_name(project_record.name)
+                    or f"project-{project_record.id}"
+                )
+            else:
+                clean_tag = raw_tag
 
             if ":" not in clean_tag:
                 clean_tag = f"{clean_tag}:latest"
