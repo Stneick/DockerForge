@@ -1,6 +1,8 @@
 import asyncio
 import json
 import re
+import shutil
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
@@ -85,17 +87,28 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
             if ":" not in clean_tag:
                 clean_tag = f"{clean_tag}:latest"
 
-            image_id, log_lines = await asyncio.to_thread(
-                build_image,
-                source_dir=str(source_dir),
-                dockerfile_content=build_record.dockerfile_content,
-                dockerignore_content=build_record.dockerignore_content,
-                tag=clean_tag,
-                build_args=formatted_build_args,
-                no_cache=data.no_cache,
-                build_id=build_id,
-            )
-            logs.extend(log_lines)
+            # Isolate build context per build
+            with tempfile.TemporaryDirectory(prefix=f"build-{build_id}-") as staging:
+                staging_dir = Path(staging)
+                await asyncio.to_thread(
+                    shutil.copytree,
+                    source_dir,
+                    staging_dir,
+                    symlinks=False,
+                    dirs_exist_ok=True,
+                )
+
+                image_id, log_lines = await asyncio.to_thread(
+                    build_image,
+                    source_dir=str(staging_dir),
+                    dockerfile_content=build_record.dockerfile_content,
+                    dockerignore_content=build_record.dockerignore_content,
+                    tag=clean_tag,
+                    build_args=formatted_build_args,
+                    no_cache=data.no_cache,
+                    build_id=build_id,
+                )
+                logs.extend(log_lines)
 
             image_size = await asyncio.to_thread(get_image_size, image_id)
             image_layers = await asyncio.to_thread(get_image_layers, image_id)
