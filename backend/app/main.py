@@ -41,9 +41,8 @@ async def lifespan(app: FastAPI):
         logger.success("successfully connected to Docker daemon")
         docker_client.close()
     except DockerException as err:
-        logger.warning(
-            f"Docker daemon is not running or not accessible: {err}",
-        )
+        logger.error(f"Docker daemon unavailable, shutting down: {err}")
+        raise
 
     try:
         app.state.arq_pool = await create_pool(
@@ -54,8 +53,7 @@ async def lifespan(app: FastAPI):
         )
         logger.success("successfully connected to Redis message broker")
     except Exception as err:
-        # TODO: if possible/worth it change to only raise when redis is actually needed
-        logger.error(f"Redis unavailable, cannot queue background tasks: {err}")
+        logger.error(f"Redis unavailable, shutting down: {err}")
         raise
 
     yield
