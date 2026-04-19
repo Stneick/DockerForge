@@ -154,6 +154,5 @@ async def preview_dockerfile(
         base_image=(overrides.base_image if overrides else None)
         or project.base_image
         or "default",
-        estimated_layers=dockerfile_content.count("\n"),
         warnings=[],
     )

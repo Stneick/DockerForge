@@ -65,7 +65,11 @@ async def trigger_build(
             "build_output_dir": project.build_output_dir,
             "build_package": project.build_package,
             "base_image": project.base_image,
-            "env_vars": data.env_vars if data.env_vars else project.env_vars,
+            "env_vars": (
+                [v.model_dump() for v in data.env_vars]
+                if data.env_vars
+                else (project.env_vars or [])
+            ),
             "port": project.port,
         },
     )
