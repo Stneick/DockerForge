@@ -1,4 +1,3 @@
-import asyncio
 import json
 import math
 from datetime import UTC, datetime
@@ -222,75 +221,51 @@ async def stream_build_events(
             status_code=status.HTTP_404_NOT_FOUND, detail="Build not found"
         )
 
+    if build.status in ["success", "failed", "cancelled"]:
+        stream_exists = await redis.exists(f"build:{build_id}")
+        if not stream_exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="logs not found",
+            )
+
     async def event_generator():
-        pubsub = redis.pubsub()
-
-        try:
-            await pubsub.subscribe(f"build:{build_id}")
-
-            # Replay: build may have finished before the request arrived or before subscribing
-            await db.refresh(build)
-            if build.status in ["success", "failed", "cancelled"]:
-                for log in build.logs or []:
-                    replay_payload = json.dumps({"status": "building", "log": log})
-                    yield f"data: {replay_payload}\n\n"
-
-                final_payload = json.dumps(
+        stream_key = f"build:{build_id}"
+        last_id = "0"
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                response = await redis.xread(
+                    {stream_key: last_id}, block=1000
+                )  # 1 second
+            except ConnectionError as e:
+                logger.error(
+                    f"Redis connection lost during live stream for build {build_id}: {e}"
+                )
+                error_payload = json.dumps(
                     {
-                        "status": build.status,
+                        "status": "building",
                         "log": {
                             "line": 0,
-                            "message": f"--- Build finished with status: {build.status.upper()} ---",
-                            "stream": "stdout",
+                            "message": "Live log stream interrupted. The build is still running in the background. Check back later for final logs.",
+                            "stream": "stderr",
                             "timestamp": datetime.now(UTC).isoformat(),
                         },
                     }
                 )
-                yield f"data: {final_payload}\n\n"
-                return
+                yield f"data: {error_payload}\n\n"
+                break
+            if not response:
+                continue
 
-            # Replay any log lines already buffered, then tail pubsub for new ones
-            buffered = await redis.lrange(f"logs:{build_id}", 0, -1)
-            for raw in buffered:
-                yield f"data: {raw.decode('utf-8')}\n\n"
-
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    message = await pubsub.get_message(
-                        ignore_subscribe_messages=True, timeout=1.0
-                    )
-                    if message:
-                        data_str = message["data"].decode("utf-8")
-                        yield f"data: {data_str}\n\n"
-
-                        parsed = json.loads(data_str)
-                        if parsed.get("status") in {"success", "failed", "cancelled"}:
-                            break
-
-                except ConnectionError as e:
-                    logger.error(
-                        f"Redis connection lost during live stream for build {build_id}: {e}"
-                    )
-                    error_payload = json.dumps(
-                        {
-                            "status": "building",
-                            "log": {
-                                "line": 0,
-                                "message": "Live log stream interrupted. The build is still running in the background. Check back later for final logs.",
-                                "stream": "stderr",
-                                "timestamp": datetime.now(UTC).isoformat(),
-                            },
-                        }
-                    )
-                    yield f"data: {error_payload}\n\n"
-                    break
-
-            await asyncio.sleep(0.1)
-
-        finally:
-            await pubsub.unsubscribe()
-            await pubsub.aclose()
+            for _stream_name, entries in response:
+                for entry_id, fields in entries:
+                    data_str = fields[b"payload"].decode("utf-8")
+                    yield f"data: {data_str}\n\n"
+                    last_id = entry_id
+                    parsed = json.loads(data_str)
+                    if parsed.get("status") in {"success", "failed", "cancelled"}:
+                        return
 
     return event_generator()
