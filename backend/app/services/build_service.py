@@ -69,8 +69,12 @@ async def trigger_build(
             "port": project.port,
         },
     )
+    project.total_builds += 1
+    project.last_build_at = datetime.now(UTC)
+
     db.add(new_build)
     await db.commit()
+    await db.refresh(project)
     await db.refresh(new_build)
 
     request_data = data.model_dump()
