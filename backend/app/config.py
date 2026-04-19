@@ -64,13 +64,6 @@ class Settings(BaseSettings):
             raise ValueError("BUILD_MEMORY_LIMIT must be like '512m', '1g', or '128k'")
         return v.lower()
 
-    @field_validator("BUILD_CPU_LIMIT")
-    @classmethod
-    def validate_cpu(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError("BUILD_CPU_LIMIT must be > 0")
-        return v
-
     @property
     def DATABASE_URL(self) -> str:
         return (
