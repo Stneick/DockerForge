@@ -249,6 +249,11 @@ async def stream_build_events(
                 yield f"data: {final_payload}\n\n"
                 return
 
+            # Replay any log lines already buffered, then tail pubsub for new ones
+            buffered = await redis.lrange(f"logs:{build_id}", 0, -1)
+            for raw in buffered:
+                yield f"data: {raw.decode('utf-8')}\n\n"
+
             while True:
                 if await request.is_disconnected():
                     break
