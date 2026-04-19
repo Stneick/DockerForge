@@ -31,14 +31,14 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.success("database connection verified")
+        logger.success("connected to Postgres")
     except Exception as err:
         logger.error("database unavailable, shutting down", error=str(err))
         raise
     try:
         docker_client = docker.from_env()
         docker_client.ping()
-        logger.success("successfully connected to Docker daemon")
+        logger.success("connected to Docker daemon")
         docker_client.close()
     except DockerException as err:
         logger.error(f"Docker daemon unavailable, shutting down: {err}")
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
         app.state.redis = redis_async.Redis(
             host=settings.REDIS_HOST, port=settings.REDIS_PORT
         )
-        logger.success("successfully connected to Redis message broker")
+        logger.success("connected to Redis")
     except Exception as err:
         logger.error(f"Redis unavailable, shutting down: {err}")
         raise
