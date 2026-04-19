@@ -391,7 +391,7 @@ def detect_language(source_dir: Path) -> SourceAnalysisResponse:
         )
 
     inferrer = _INFERRERS.get(best_lang)
-    result = inferrer(source_dir, files) if inferrer else {"framework": "default"}
+    result: dict = inferrer(source_dir, files) if inferrer else {"framework": "default"}
 
     dep_file = None
     for df in LANGUAGES[best_lang]["dependency_files"]:

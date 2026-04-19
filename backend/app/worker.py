@@ -8,6 +8,7 @@ from pathlib import Path
 from uuid import UUID
 
 from arq.connections import RedisSettings
+from docker.errors import BuildError
 from loguru import logger
 from sqlalchemy import select
 
@@ -18,7 +19,6 @@ from app.models.build import BuildStatusEnum
 from app.models.project import Project as ProjectModel
 from app.schemas.build import TriggerBuildRequest
 from app.services.docker_client import build_image, get_image_layers, get_image_size
-from docker.errors import BuildError
 
 
 def _slugify_project_name(name: str) -> str:

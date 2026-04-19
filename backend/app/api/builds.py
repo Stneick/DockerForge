@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_current_user, get_db, get_redis
 from app.models.user import User
 from app.schemas.build import (
     Build as BuildSchema,
@@ -21,6 +21,7 @@ from app.services.build_service import (
 )
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import StreamingResponse
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/projects/{project_id}/builds", tags=["Builds"])
@@ -78,9 +79,10 @@ async def build_events(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ):
     generator = await stream_build_events(
-        project_id, build_id, request, current_user, db
+        project_id, build_id, request, current_user, db, redis
     )
 
     return StreamingResponse(generator, media_type="text/event-stream")

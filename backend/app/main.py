@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
+import redis.asyncio as redis_async
 from arq import create_pool
 from arq.connections import RedisSettings
+from docker.errors import DockerException
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,7 +22,6 @@ from app.core.logging import setup_logging
 from app.database import engine
 from app.schemas.system import RootResponse
 from app.services.docker_client import DockerDaemonUnavailableError
-from docker.errors import DockerException
 
 setup_logging(settings.LOG_LEVEL)
 
@@ -48,6 +49,9 @@ async def lifespan(app: FastAPI):
         app.state.arq_pool = await create_pool(
             RedisSettings(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
         )
+        app.state.redis = redis_async.Redis(
+            host=settings.REDIS_HOST, port=settings.REDIS_PORT
+        )
         logger.success("successfully connected to Redis message broker")
     except Exception as err:
         # TODO: if possible/worth it change to only raise when redis is actually needed
@@ -58,11 +62,13 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
     if hasattr(app.state, "arq_pool"):
         await app.state.arq_pool.close()
+    if hasattr(app.state, "redis"):
+        await app.state.redis.aclose()
 
 
 app = FastAPI(
     title="DockerForge API",
-    version="0.6",
+    version="0.8",
     description="",
     debug=settings.DEBUG,
     docs_url="/docs" if settings.ENVIRONMENT == "dev" else None,
@@ -115,7 +121,7 @@ app.add_middleware(
 async def root() -> RootResponse:
     return RootResponse(
         name="DockerForge API",
-        version="0.1",
+        version="0.8",
         status="online",
         timestamp=datetime.now(UTC),
     )
