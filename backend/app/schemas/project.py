@@ -161,5 +161,4 @@ class DockerfilePreviewResponse(BaseModel):
     dockerfile_content: str
     dockerignore_content: str
     base_image: str
-    estimated_layers: int
     warnings: list[str]
