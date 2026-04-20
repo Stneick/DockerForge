@@ -59,9 +59,21 @@ async def _extract_archive(temp_path: Path, extract_dir: Path, archive_type: str
         if extract_dir.exists():
             _force_rmtree(extract_dir)  # clean previous upload
         extract_dir.mkdir(parents=True, exist_ok=True)
+        root = extract_dir.resolve()
 
         if archive_type == "zip":
             with zipfile.ZipFile(temp_path) as zf:
+                for member in zf.infolist():
+                    target = (extract_dir / member.filename).resolve()
+                    if not target.is_relative_to(root):
+                        logger.error(
+                            f"Zip-slip blocked for extract_dir {root}: "
+                            f"entry {member.filename!r} resolves to {target}"
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid project source.",
+                        )
                 zf.extractall(extract_dir)
         else:
             with tarfile.open(temp_path) as tf:
