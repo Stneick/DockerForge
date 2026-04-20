@@ -16,14 +16,21 @@ class DockerDaemonUnavailableError(Exception):
     pass
 
 
-client = docker.from_env()
+_client: docker.DockerClient | None = None
+
+
+def _get_client() -> docker.DockerClient:
+    global _client
+    if _client is None:
+        _client = docker.from_env()
+    return _client
 
 
 def require_docker(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
-            client.ping()
+            _get_client().ping()
         except DockerException as e:
             logger.error(f"Docker check failed before calling {func.__name__}: {e}")
             raise DockerDaemonUnavailableError(
@@ -59,7 +66,7 @@ def build_image(
     image_id = None
 
     try:
-        resp = client.api.build(
+        resp = _get_client().api.build(
             path=source_dir,
             tag=tag,
             buildargs=build_args or {},
@@ -143,7 +150,7 @@ def build_image(
 @require_docker
 def get_image_layers(tag: str) -> list[dict]:
     try:
-        image = client.images.get(tag)
+        image = _get_client().images.get(tag)
         history = image.history()
         layers = []
         for layer in history:
@@ -166,7 +173,7 @@ def get_image_layers(tag: str) -> list[dict]:
 @require_docker
 def get_image_size(tag: str) -> int | None:
     try:
-        image = client.images.get(tag)
+        image = _get_client().images.get(tag)
         return image.attrs.get("Size", 0)
     except ImageNotFound:
         logger.error(f"Image {tag} not found to get size")
@@ -176,7 +183,7 @@ def get_image_size(tag: str) -> int | None:
 @require_docker
 def save_image(tag: str):
     try:
-        image = client.images.get(tag)
+        image = _get_client().images.get(tag)
         return image.save(named=True)
     except ImageNotFound:
         logger.error(f"Image {tag} not found for download")
@@ -186,7 +193,7 @@ def save_image(tag: str):
 @require_docker
 def remove_image(tag: str) -> bool:
     try:
-        client.images.remove(tag, force=True)
+        _get_client().images.remove(tag, force=True)
         logger.debug(f"Removed image {tag}")
         return True
     except ImageNotFound:
