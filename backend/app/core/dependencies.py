@@ -2,10 +2,11 @@ import uuid
 from collections.abc import AsyncGenerator
 
 import jwt
+import redis.asyncio as redis_async
 from app.core.security import decode_token
 from app.database import async_session
 from app.models import User
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyCookie
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
+
+
+def get_redis(request: Request) -> redis_async.Redis:
+    return request.app.state.redis
 
 
 cookie_scheme = APIKeyCookie(name="access_token")

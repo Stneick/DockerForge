@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import redis.asyncio as redis_async
-from app.config import settings
 from app.models.build import Build as BuildModel
 from app.models.build import BuildStatusEnum, TriggerTypeEnum
 from app.models.user import User
@@ -207,6 +206,7 @@ async def stream_build_events(
     request: Request,
     user: User,
     db: AsyncSession,
+    redis: redis_async.Redis,
 ):
     project = await _get_project_or_404(project_id, user, db)
 
@@ -223,10 +223,7 @@ async def stream_build_events(
         )
 
     async def event_generator():
-        redis_client = redis_async.Redis(
-            host=settings.REDIS_HOST, port=settings.REDIS_PORT
-        )
-        pubsub = redis_client.pubsub()
+        pubsub = redis.pubsub()
 
         try:
             await pubsub.subscribe(f"build:{build_id}")
@@ -289,6 +286,6 @@ async def stream_build_events(
 
         finally:
             await pubsub.unsubscribe()
-            await redis_client.aclose()
+            await pubsub.aclose()
 
     return event_generator()

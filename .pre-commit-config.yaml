@@ -12,7 +12,7 @@ repos:
         args: ["--maxkb=500"]
 
   - repo: https://github.com/psf/black
-    rev: 24.10.0
+    rev: 26.3.1
     hooks:
       - id: black
         language_version: python3.12
@@ -20,7 +20,7 @@ repos:
         exclude: ^backend/alembic/versions/
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+    rev: v0.15.11
     hooks:
       - id: ruff
         files: ^backend/
@@ -32,7 +32,7 @@ repos:
           - --ignore=E501,B008
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.20.1
     hooks:
       - id: mypy
         files: ^backend/app/
@@ -41,7 +41,6 @@ repos:
           - sqlalchemy[mypy]
           - types-passlib
           - types-aiofiles
-          - types-redis
           - types-docker
           - pydantic>=2.0.0
           - pydantic-settings

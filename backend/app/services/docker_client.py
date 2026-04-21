@@ -6,10 +6,10 @@ from uuid import UUID
 import redis
 from app.config import settings
 from app.schemas.build import LogEntry, StreamEvent
+from docker.errors import APIError, BuildError, DockerException, ImageNotFound
 from loguru import logger
 
 import docker
-from docker.errors import APIError, BuildError, DockerException, ImageNotFound
 
 
 class DockerDaemonUnavailableError(Exception):
