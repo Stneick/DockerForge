@@ -177,6 +177,13 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                     f"Failed to publish final status for build {build_id}: {pub_err}"
                 )
 
+            try:
+                await redis.delete(f"logs:{build_id}")
+            except Exception as del_err:
+                logger.warning(
+                    f"Failed to clean up log buffer for build {build_id}: {del_err}"
+                )
+
             logger.info(
                 f"Background build {build_id} finished with status: {final_status}"
             )

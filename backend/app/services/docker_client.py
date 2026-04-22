@@ -102,9 +102,9 @@ def build_image(
                             timestamp=now,
                         )
                         event = StreamEvent(status="building", log=log_entry)
-                        redis_client.publish(
-                            f"build:{build_id}", event.model_dump_json()
-                        )
+                        payload = event.model_dump_json()
+                        redis_client.publish(f"build:{build_id}", payload)
+                        redis_client.rpush(f"logs:{build_id}", payload)
                     line_counter += 1
 
             if "error" in chunk:
@@ -127,7 +127,9 @@ def build_image(
                         timestamp=error_now,
                     )
                     event = StreamEvent(status="failed", log=log_entry)
-                    redis_client.publish(f"build:{build_id}", event.model_dump_json())
+                    payload = event.model_dump_json()
+                    redis_client.publish(f"build:{build_id}", payload)
+                    redis_client.rpush(f"logs:{build_id}", payload)
 
                 raise BuildError(error_msg, iter(log_lines))
 
