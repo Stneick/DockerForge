@@ -54,7 +54,7 @@ async def trigger_build(
         dockerignore_content=dockerignore_content,
         trigger_type=TriggerTypeEnum.manual,
         build_config={
-            "language": project.language,
+            "language": project.language.value if project.language else None,
             "dependency_file": project.dependency_file,
             "startup_command": project.startup_command,
             "framework": project.framework,
@@ -69,6 +69,8 @@ async def trigger_build(
                 else (project.env_vars or [])
             ),
             "port": project.port,
+            "build_args": [a.model_dump() for a in (data.build_args or [])],
+            "no_cache": data.no_cache,
         },
     )
     project.total_builds += 1
