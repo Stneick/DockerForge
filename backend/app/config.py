@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     BUILD_MAX_CONCURRENT: int = 2
     BUILD_MEMORY_LIMIT: str = "512m"
     IMAGE_TTL_SECONDS: int = 3600
+    BUILD_LOG_STREAM_TTL_SECONDS: int = 300
+    BUILD_LOG_STREAM_MAX_ENTRIES: int = 10000
 
     # Upload
     MAX_UPLOAD_SIZE_MB: int = 100
