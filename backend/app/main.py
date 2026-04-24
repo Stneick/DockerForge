@@ -25,6 +25,14 @@ from app.services.docker_client import DockerDaemonUnavailableError
 
 setup_logging(settings.LOG_LEVEL)
 
+_dev = settings.ENVIRONMENT == "dev"
+_APP_DESCRIPTION = (
+    "DockerForge is a self-hosted web application that simplifies Docker image creation. "
+    "Users upload their source code, the system auto-detects the language and dependencies, "
+    "generates an optimized Dockerfile using best-practice templates, builds the Docker image, "
+    "and lets users download the resulting image as a tar archive."
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -67,10 +75,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="DockerForge API",
     version="0.8",
-    description="",
-    debug=settings.DEBUG,
-    docs_url="/docs" if settings.ENVIRONMENT == "dev" else None,
-    redoc_url="/redoc" if settings.ENVIRONMENT == "dev" else None,
+    description=_APP_DESCRIPTION,
+    debug=_dev,
+    docs_url="/docs" if _dev else None,
+    redoc_url="/redoc" if _dev else None,
     lifespan=lifespan,
 )
 

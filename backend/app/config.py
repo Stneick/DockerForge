@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     WORKERS: int = 4
     LOG_LEVEL: str = "info"
     ENVIRONMENT: Literal["dev", "prod"] = "dev"
-    DEBUG: bool = True
     COOKIE_SECURE: bool = False
 
     # Database
