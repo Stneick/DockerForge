@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("SELECT 1"))
         logger.success("connected to Postgres")
     except Exception as err:
-        logger.error("database unavailable, shutting down", error=str(err))
+        logger.critical("database unavailable, shutting down", error=str(err))
         raise
     try:
         docker_client = docker.from_env()
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
         logger.success("connected to Docker daemon")
         docker_client.close()
     except DockerException as err:
-        logger.error(f"Docker daemon unavailable, shutting down: {err}")
+        logger.critical(f"Docker daemon unavailable, shutting down: {err}")
         raise
 
     try:
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
         )
         logger.success("connected to Redis")
     except Exception as err:
-        logger.error(f"Redis unavailable, shutting down: {err}")
+        logger.critical(f"Redis unavailable, shutting down: {err}")
         raise
 
     yield

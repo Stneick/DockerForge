@@ -184,7 +184,7 @@ def get_image_size(tag: str) -> int | None:
         image = _get_client().images.get(tag)
         return image.attrs.get("Size", 0)
     except ImageNotFound:
-        logger.error(f"Image {tag} not found to get size")
+        logger.warning(f"Image {tag} not found to get size")
         return None
 
 
@@ -194,7 +194,7 @@ def save_image(tag: str):
         image = _get_client().images.get(tag)
         return image.save(named=True)
     except ImageNotFound:
-        logger.error(f"Image {tag} not found for download")
+        logger.warning(f"Image {tag} not found for download")
         return None
 
 

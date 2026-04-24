@@ -100,7 +100,7 @@ def _read_package_json(source_dir: Path) -> dict | None:
     try:
         return json.loads(pkg.read_text(errors="ignore"))
     except json.JSONDecodeError as err:
-        logger.error(f"Failed to parse package.json: {err}")
+        logger.warning(f"Failed to parse package.json: {err}")
         return None
 
 
@@ -227,7 +227,7 @@ def _detect_go(source_dir: Path) -> dict:
                     go_version = stripped.split()[1]
                     break
         except (IndexError, OSError) as err:
-            logger.error(f"Failed to parse go.mod: {err}")
+            logger.warning(f"Failed to parse go.mod: {err}")
 
     cmd_dir = source_dir / "cmd"
     if cmd_dir.is_dir():
@@ -325,7 +325,7 @@ def _detect_rust(source_dir: Path) -> dict:
                     binary_name = stripped.split("=")[1].strip().strip('"').strip("'")
                     break
         except OSError as err:
-            logger.error(f"Failed to parse Cargo.toml: {err}")
+            logger.warning(f"Failed to parse Cargo.toml: {err}")
 
     return {
         "framework": "default",

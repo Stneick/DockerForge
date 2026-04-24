@@ -139,7 +139,7 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
 
         except BuildError as e:
             build_record.status = BuildStatusEnum.failed
-            logger.error(f"Build {build_id} failed: {e}")
+            logger.warning(f"Build {build_id} failed: {e}")
             if e.build_log:
                 logs.extend(e.build_log)
 
@@ -213,7 +213,7 @@ async def cleanup_image_task(ctx: dict, tag: str, build_id: UUID) -> str:
     try:
         removed = await asyncio.to_thread(remove_image, tag)
     except Exception as err:
-        logger.error(
+        logger.warning(
             f"TTL cleanup: Docker failed to remove image, build_id={build_id} image_tag={tag}: {err}"
         )
         return f"failed to clean {tag}"
