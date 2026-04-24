@@ -1,4 +1,3 @@
-import math
 import re
 from datetime import datetime
 from typing import Literal
@@ -6,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
+from app.core.utils import format_size
 from app.schemas.common import Pagination
 from app.schemas.project import EnvVar
 
@@ -55,6 +55,7 @@ class Build(BaseModel):
     started_at: datetime | None = None
     finished_at: datetime | None = None
     duration_seconds: float | None = None
+    image_cleaned_at: datetime | None = None
 
 
 class ImageLayer(BaseModel):
@@ -72,17 +73,9 @@ class BuildDetail(Build):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def image_size_human(self) -> str | None:
-        if not self.image_size_bytes:
+        if self.image_size_bytes is None:
             return None
-        size_bytes = self.image_size_bytes
-        if size_bytes == 0:
-            return "0 B"
-
-        units = ("B", "KB", "MB", "GB", "TB")
-        i = math.floor(math.log(size_bytes, 1024))
-        p = math.pow(1024, i)
-        s = round(size_bytes / p, 2)
-        return f"{s} {units[i]}"
+        return format_size(self.image_size_bytes)
 
 
 class BuildListResponse(BaseModel):

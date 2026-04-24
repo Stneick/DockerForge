@@ -1,14 +1,17 @@
+import asyncio
 import json
 import math
 from datetime import UTC, datetime
 from uuid import UUID
 
 import redis.asyncio as redis_async
+from app.core.utils import format_size_diff
 from app.models.build import Build as BuildModel
 from app.models.build import BuildStatusEnum, TriggerTypeEnum
 from app.models.user import User
 from app.schemas.build import Build as BuildSchema
 from app.schemas.build import (
+    BuildComparisonResponse,
     BuildDetail,
     BuildListResponse,
     BuildLogsResponse,
@@ -18,8 +21,10 @@ from app.schemas.build import (
 from app.schemas.common import Pagination
 from app.schemas.project import Project as ProjectSchema
 from app.services import dockerfile_generator
+from app.services.docker_client import save_image
 from app.services.project_service import _get_project_or_404
 from fastapi import HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -271,3 +276,99 @@ async def stream_build_events(
                         return
 
     return event_generator()
+
+
+async def download_build_file(
+    project_id: UUID,
+    build_id: UUID,
+    user: User,
+    db: AsyncSession,
+) -> StreamingResponse:
+    build = await get_build_detail(project_id, build_id, user, db)
+    if build.status != BuildStatusEnum.success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Build not successful",
+        )
+    if build.image_cleaned_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Build has already been cleaned, please trigger a new build",
+        )
+    stream = await asyncio.to_thread(save_image, build.image_tag)
+    if stream is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found in Docker",
+        )
+    assert build.image_tag is not None
+    filename = build.image_tag.replace(":", "_") + ".tar"
+
+    return StreamingResponse(
+        stream,
+        media_type="application/x-tar",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+async def get_build_comparison(
+    project_id: UUID,
+    build_a_id: UUID,
+    build_b_id: UUID,
+    user: User,
+    db: AsyncSession,
+) -> BuildComparisonResponse:
+    build_a = await get_build_detail(project_id, build_a_id, user, db)
+    build_b = await get_build_detail(project_id, build_b_id, user, db)
+
+    if (
+        build_a.status != BuildStatusEnum.success
+        or build_b.status != BuildStatusEnum.success
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Builds must be successful",
+        )
+
+    size_a = build_a.image_size_bytes or 0
+    size_b = build_b.image_size_bytes or 0
+    size_diff = size_b - size_a
+
+    # TODO: replace with LCS-based diff using difflib.SequenceMatcher
+    # Currently matches by exact instruction string, so modified instructions appear
+    # as separate "removed" + "added" instead of "changed".
+    layers_a = {layer.instruction: layer for layer in (build_a.layers or [])}
+    layers_b = {layer.instruction: layer for layer in (build_b.layers or [])}
+    all_instructions = list(layers_a.keys()) + [
+        k for k in layers_b if k not in layers_a
+    ]
+    layer_comparison = []
+    for instruction in all_instructions:
+        a = layers_a.get(instruction)
+        b = layers_b.get(instruction)
+        if a and b:
+            diff_status = "changed" if a.size_bytes != b.size_bytes else "unchanged"
+        elif b:
+            diff_status = "added"
+        else:
+            diff_status = "removed"
+        layer_comparison.append(
+            {
+                "instruction": instruction,
+                "size_a": a.size_bytes if a else None,
+                "size_b": b.size_bytes if b else None,
+                "diff_bytes": (b.size_bytes if b else 0) - (a.size_bytes if a else 0),
+                "status": diff_status,
+            }
+        )
+
+    return BuildComparisonResponse(
+        build_a=build_a,
+        build_b=build_b,
+        size_diff_bytes=size_diff,
+        size_diff_human=format_size_diff(size_diff),
+        duration_diff_seconds=round(
+            (build_b.duration_seconds or 0) - (build_a.duration_seconds or 0), 2
+        ),
+        layer_comparison=layer_comparison,
+    )

@@ -13,6 +13,8 @@ from app.schemas.build import (
     TriggerBuildRequest,
 )
 from app.services.build_service import (
+    download_build_file,
+    get_build_comparison,
     get_build_detail,
     get_build_logs,
     list_builds,
@@ -86,3 +88,26 @@ async def build_events(
     )
 
     return StreamingResponse(generator, media_type="text/event-stream")
+
+
+@router.get("/{build_id}/download")
+async def download_build(
+    project_id: UUID,
+    build_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await download_build_file(project_id, build_id, current_user, db)
+
+
+@router.get("/compare")
+async def compare_builds(
+    project_id: UUID,
+    build_a_id: UUID = Query(..., description="First build ID"),
+    build_b_id: UUID = Query(..., description="Second build ID"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await get_build_comparison(
+        project_id, build_a_id, build_b_id, current_user, db
+    )

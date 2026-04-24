@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
@@ -5,6 +6,7 @@ from uuid import UUID
 
 import redis
 from app.config import settings
+from app.core.utils import format_size
 from app.schemas.build import LogEntry, StreamEvent
 from docker.errors import APIError, BuildError, DockerException, ImageNotFound
 from loguru import logger
@@ -168,7 +170,7 @@ def get_image_layers(tag: str) -> list[dict]:
                     {
                         "instruction": layer.get("CreatedBy", ""),
                         "size_bytes": size,
-                        "size_human": _format_size(size),
+                        "size_human": format_size(size),
                         "created_at": layer.get("Created"),
                     }
                 )
@@ -189,7 +191,7 @@ def get_image_size(tag: str) -> int | None:
 
 
 @require_docker
-def save_image(tag: str):
+def save_image(tag: str) -> Iterator[bytes] | None:
     try:
         image = _get_client().images.get(tag)
         return image.save(named=True)
@@ -207,14 +209,3 @@ def remove_image(tag: str) -> bool:
     except ImageNotFound:
         logger.debug(f"Image {tag} not found, already removed")
         return False
-
-
-def _format_size(size_bytes: int) -> str:
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
