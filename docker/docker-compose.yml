@@ -3,6 +3,7 @@ name: dockerforge
 services:
   postgres:
     image: postgres:16
+    container_name: dockerforge-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dockerforge}
@@ -21,6 +22,7 @@ services:
   # Message Broker
   redis:
     image: redis:7-alpine
+    container_name: dockerforge-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
@@ -37,6 +39,7 @@ services:
     build:
       context: ../backend
       dockerfile: ../docker/Dockerfile.backend
+    container_name: dockerforge-migrate
     env_file:
       - ../backend/.env
     command: alembic upgrade head
@@ -50,12 +53,13 @@ services:
     build:
       context: ../backend
       dockerfile: ../docker/Dockerfile.backend
+    container_name: dockerforge-api
     restart: unless-stopped
     env_file:
       - ../backend/.env
     command: fastapi dev --host 0.0.0.0
     ports:
-      - "8000:8000"
+      - "7000:8000"
     volumes:
       - project_data:/app/data/projects
       - /var/run/docker.sock:/var/run/docker.sock
@@ -71,6 +75,7 @@ services:
     build:
       context: ../backend
       dockerfile: ../docker/Dockerfile.backend
+    container_name: dockerforge-worker
     restart: unless-stopped
     env_file:
       - ../backend/.env
