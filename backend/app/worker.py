@@ -3,7 +3,7 @@ import json
 import re
 import shutil
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -18,7 +18,12 @@ from app.models.build import Build as BuildModel
 from app.models.build import BuildStatusEnum
 from app.models.project import Project as ProjectModel
 from app.schemas.build import TriggerBuildRequest
-from app.services.docker_client import build_image, get_image_layers, get_image_size
+from app.services.docker_client import (
+    build_image,
+    get_image_layers,
+    get_image_size,
+    remove_image,
+)
 
 
 def _slugify_project_name(name: str) -> str:
@@ -86,16 +91,17 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                     formatted_build_args[arg.key] = arg.value
 
             raw_tag = (build_record.image_tag or "").strip()
+            build_id_short = str(build_id).replace("-", "")[:8]
+
             if not raw_tag or raw_tag.lower() == "none":
-                clean_tag = (
+                repo = (
                     _slugify_project_name(project_record.name)
                     or f"project-{project_record.id}"
                 )
             else:
-                clean_tag = raw_tag
+                repo = raw_tag.split(":")[0]
 
-            if ":" not in clean_tag:
-                clean_tag = f"{clean_tag}:latest"
+            clean_tag = f"{repo}:b-{build_id_short}"
 
             # Isolate build context per build
             with tempfile.TemporaryDirectory(prefix=f"build-{build_id}-") as staging:
@@ -124,9 +130,12 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
             image_layers = await asyncio.to_thread(get_image_layers, image_id)
 
             build_record.status = BuildStatusEnum.success
+            build_record.image_tag = clean_tag
             build_record.image_size_bytes = image_size
             build_record.layers = image_layers
-            logger.success(f"Build {build_id} completed successfully")
+            logger.success(
+                f"Build {build_id} completed successfully, image_tag={clean_tag}"
+            )
 
         except BuildError as e:
             build_record.status = BuildStatusEnum.failed
@@ -184,12 +193,55 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                 f"Background build {build_id} finished with status: {final_status}"
             )
 
+        if final_status == BuildStatusEnum.success:
+            try:
+                await redis.enqueue_job(
+                    "cleanup_image_task",
+                    clean_tag,
+                    build_id,
+                    _defer_by=timedelta(seconds=settings.IMAGE_TTL_SECONDS),
+                )
+            except Exception as enqueue_err:
+                logger.warning(
+                    f"Failed to schedule TTL cleanup for build_id={build_id} image_tag={clean_tag}: {enqueue_err}. "
+                )
+
         return f"Build {build_id} finished with status: {final_status}"
+
+
+async def cleanup_image_task(ctx: dict, tag: str, build_id: UUID) -> str:
+    try:
+        removed = await asyncio.to_thread(remove_image, tag)
+    except Exception as err:
+        logger.error(
+            f"TTL cleanup: Docker failed to remove image, build_id={build_id} image_tag={tag}: {err}"
+        )
+        return f"failed to clean {tag}"
+
+    if removed:
+        logger.info(f"TTL cleanup: removed image, build_id={build_id} image_tag={tag}")
+    else:
+        logger.debug(
+            f"TTL cleanup: image already gone, build_id={build_id} image_tag={tag}"
+        )
+
+    async with async_session() as db:
+        result = await db.execute(select(BuildModel).where(BuildModel.id == build_id))
+        build = result.scalars().first()
+        if build:
+            build.image_cleaned_at = datetime.now(UTC)
+            await db.commit()
+        else:
+            logger.warning(
+                f"TTL cleanup: build not found for image_cleaned_at update, build_id={build_id} image_tag={tag}"
+            )
+
+    return f"cleaned {tag}"
 
 
 # ARQ Configuration
 class WorkerSettings:
-    functions = [run_build_task]
+    functions = [run_build_task, cleanup_image_task]
     redis_settings = RedisSettings(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
     max_jobs = settings.BUILD_MAX_CONCURRENT
     job_timeout = settings.BUILD_TIMEOUT_SECONDS + 60  # buffer for cleanup

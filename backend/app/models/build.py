@@ -62,5 +62,8 @@ class Build(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    image_cleaned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # None means not yet cleaned
 
     project: Mapped[Project] = relationship("Project", back_populates="builds")

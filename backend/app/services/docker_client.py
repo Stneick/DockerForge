@@ -205,10 +205,7 @@ def remove_image(tag: str) -> bool:
         logger.debug(f"Removed image {tag}")
         return True
     except ImageNotFound:
-        logger.debug(f"Image {tag} not found to remove")
-        return False
-    except APIError as err:
-        logger.error(f"Failed to remove image {tag}: {err}")
+        logger.debug(f"Image {tag} not found, already removed")
         return False
 
 
