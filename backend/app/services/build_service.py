@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import redis.asyncio as redis_async
+from app.config import settings
 from app.core.utils import format_size_diff
 from app.models.build import Build as BuildModel
 from app.models.build import BuildStatusEnum, TriggerTypeEnum
@@ -18,7 +19,7 @@ from app.schemas.build import (
     LogEntry,
     TriggerBuildRequest,
 )
-from app.schemas.common import Pagination
+from app.schemas.common import MessageResponse, Pagination
 from app.schemas.project import Project as ProjectSchema
 from app.services import dockerfile_generator
 from app.services.docker_client import save_image
@@ -194,6 +195,12 @@ async def get_build_logs(
     if not build:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Build not found"
+        )
+
+    if build.status in (BuildStatusEnum.pending, BuildStatusEnum.building):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Build is still in progress. Use the /events endpoint to stream live logs.",
         )
 
     raw_logs = build.logs or []
@@ -372,3 +379,44 @@ async def get_build_comparison(
         ),
         layer_comparison=layer_comparison,
     )
+
+
+async def cancel_running_build(
+    project_id: UUID,
+    build_id: UUID,
+    user: User,
+    db: AsyncSession,
+    redis: redis_async.Redis,
+) -> MessageResponse:
+    project = await _get_project_or_404(project_id, user, db)
+
+    query = select(BuildModel).where(
+        BuildModel.id == build_id,
+        BuildModel.project_id == project.id,
+    )
+    result = await db.execute(query)
+    build = result.scalar_one_or_none()
+
+    if not build:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Build not found"
+        )
+
+    if build.status not in (BuildStatusEnum.pending, BuildStatusEnum.building):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Build is not in progress",
+        )
+
+    await redis.set(
+        f"build:{build_id}:cancel",
+        "1",
+        ex=settings.BUILD_TIMEOUT_SECONDS + 60,
+    )
+
+    if build.status == BuildStatusEnum.pending:
+        message = "Build is queued; it will be cancelled before execution starts."
+    else:
+        message = "Cancel requested; build will stop shortly."
+
+    return MessageResponse(message=message)

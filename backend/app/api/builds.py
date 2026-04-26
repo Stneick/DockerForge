@@ -12,7 +12,9 @@ from app.schemas.build import (
     BuildLogsResponse,
     TriggerBuildRequest,
 )
+from app.schemas.common import MessageResponse
 from app.services.build_service import (
+    cancel_running_build,
     download_build_file,
     get_build_comparison,
     get_build_detail,
@@ -111,3 +113,18 @@ async def compare_builds(
     return await get_build_comparison(
         project_id, build_a_id, build_b_id, current_user, db
     )
+
+
+@router.post(
+    "/{build_id}/cancel",
+    response_model=MessageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def cancel_build(
+    project_id: UUID,
+    build_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+):
+    return await cancel_running_build(project_id, build_id, current_user, db, redis)

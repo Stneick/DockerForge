@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
+from arq import cron
 from arq.connections import RedisSettings
 from docker.errors import BuildError
 from loguru import logger
@@ -17,11 +18,13 @@ from app.database import async_session
 from app.models.build import Build as BuildModel
 from app.models.build import BuildStatusEnum
 from app.models.project import Project as ProjectModel
-from app.schemas.build import TriggerBuildRequest
+from app.schemas.build import LogEntry, StreamEvent, TriggerBuildRequest
 from app.services.docker_client import (
+    BuildCancelled,
     build_image,
     get_image_layers,
     get_image_size,
+    prune_managed_dangling_images,
     remove_image,
 )
 
@@ -49,25 +52,30 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
             logger.error(f"Build {build_id} not found in database.")
             return "Build not found"
 
-        build_record.status = BuildStatusEnum.building
-        build_record.started_at = datetime.now(UTC)
-        await db.commit()
-
-        project_query = select(ProjectModel).where(
-            ProjectModel.id == build_record.project_id
-        )
-        project_result = await db.execute(project_query)
-        project_record = project_result.scalars().first()
-
-        if not project_record:
-            logger.error(f"Project for build {build_id} not found in database.")
-            return "Project not found"
-
-        source_dir = (
-            Path(settings.PROJECTS_SOURCE_DIR) / str(project_record.id) / "source"
-        )
-
         try:
+            if await redis.exists(f"build:{build_id}:cancel"):
+                raise BuildCancelled()
+
+            build_record.status = BuildStatusEnum.building
+            build_record.started_at = datetime.now(UTC)
+            await db.commit()
+
+            project_query = select(ProjectModel).where(
+                ProjectModel.id == build_record.project_id
+            )
+            project_result = await db.execute(project_query)
+            project_record = project_result.scalars().first()
+
+            if not project_record:
+                logger.error(f"Project for build {build_id} not found in database.")
+                raise FileNotFoundError(
+                    f"Project for build {build_id} not found in database."
+                )
+
+            source_dir = (
+                Path(settings.PROJECTS_SOURCE_DIR) / str(project_record.id) / "source"
+            )
+
             if not source_dir.exists():
                 raise FileNotFoundError(
                     f"Project source directory not found: {source_dir}"
@@ -137,6 +145,41 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                 f"Build {build_id} completed successfully, image_tag={clean_tag}"
             )
 
+        except BuildCancelled as e:
+            build_record.status = BuildStatusEnum.cancelled
+            logger.info(f"Build {build_id} cancelled by user")
+            if e.build_log:
+                logs.extend(e.build_log)
+            else:
+                cancel_now = datetime.now(UTC)
+                cancel_msg = "Build cancelled by user"
+                logs.append(
+                    {
+                        "line": len(logs) + 1,
+                        "message": cancel_msg,
+                        "stream": "stderr",
+                        "timestamp": cancel_now.isoformat(),
+                    }
+                )
+                try:
+                    log_entry = LogEntry(
+                        line=len(logs),
+                        message=cancel_msg,
+                        stream="stderr",
+                        timestamp=cancel_now,
+                    )
+                    event = StreamEvent(status="cancelled", log=log_entry)
+                    await redis.xadd(
+                        f"build:{build_id}",
+                        {"payload": event.model_dump_json()},
+                        maxlen=settings.BUILD_LOG_STREAM_MAX_ENTRIES,
+                        approximate=True,
+                    )
+                except Exception as pub_err:
+                    logger.debug(
+                        f"Failed to publish pre-start cancel log for {build_id}: {pub_err}"
+                    )
+
         except BuildError as e:
             build_record.status = BuildStatusEnum.failed
             logger.warning(f"Build {build_id} failed: {e}")
@@ -156,6 +199,13 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
             )
 
         finally:
+            try:
+                await redis.delete(f"build:{build_id}:cancel")
+            except Exception as cancel_del_err:
+                logger.debug(
+                    f"Failed to delete cancel flag for build {build_id}: {cancel_del_err}"
+                )
+
             build_record.finished_at = datetime.now(UTC)
             if build_record.started_at:
                 duration = build_record.finished_at - build_record.started_at
@@ -239,9 +289,26 @@ async def cleanup_image_task(ctx: dict, tag: str, build_id: UUID) -> str:
     return f"cleaned {tag}"
 
 
+async def prune_managed_images_task(ctx: dict) -> str:
+    result = await asyncio.to_thread(prune_managed_dangling_images, "10m")
+    deleted = result.get("images_deleted", 0)
+    reclaimed = result.get("space_reclaimed", 0)
+    if deleted:
+        logger.info(
+            f"Periodic prune: removed {deleted} dangling image(s), "
+            f"reclaimed {reclaimed} bytes"
+        )
+    else:
+        logger.debug("Periodic prune: nothing to clean up")
+    return f"pruned {deleted} images, reclaimed {reclaimed} bytes"
+
+
 # ARQ Configuration
 class WorkerSettings:
     functions = [run_build_task, cleanup_image_task]
+    cron_jobs = [
+        cron(prune_managed_images_task, minute={0, 15, 30, 45}),
+    ]
     redis_settings = RedisSettings(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
     max_jobs = settings.BUILD_MAX_CONCURRENT
     job_timeout = settings.BUILD_TIMEOUT_SECONDS + 60  # buffer for cleanup
