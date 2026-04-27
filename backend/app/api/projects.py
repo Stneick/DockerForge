@@ -1,9 +1,12 @@
+import asyncio
 from typing import Literal
 from uuid import UUID
 
 from app.core.dependencies import get_current_user, get_db
+from app.core.exceptions import HadolintError
 from app.models.user import User
 from app.schemas.common import MessageResponse
+from app.schemas.lint import LintRequest, LintResponse
 from app.schemas.project import (
     CloneRequest,
     CreateProjectRequest,
@@ -15,6 +18,7 @@ from app.schemas.project import (
     UpdateProjectRequest,
 )
 from app.services.dockerfile_generator import generate_dockerfile, generate_dockerignore
+from app.services.lint_service import lint_dockerfile_content
 from app.services.project_service import (
     _get_project_or_404,
     create_project,
@@ -156,3 +160,35 @@ async def preview_dockerfile(
         or "default",
         warnings=[],
     )
+
+
+@router.post("/{project_id}/dockerfile/lint", response_model=LintResponse)
+async def lint_dockerfile(
+    project_id: UUID,
+    body: LintRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    project = await _get_project_or_404(project_id, current_user, db)
+
+    dockerfile = body.dockerfile if body else None
+
+    if dockerfile is None:
+        project_schema = Project.model_validate(project)
+        if not project_schema.language or not project_schema.framework:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Language and framework must be set on the project before linting",
+            )
+        try:
+            dockerfile = generate_dockerfile(project=project_schema)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+            ) from e
+
+    try:
+        issues = await asyncio.to_thread(lint_dockerfile_content, dockerfile)
+    except HadolintError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    return LintResponse(issues=issues)

@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     BUILD_LOG_STREAM_TTL_SECONDS: int = 300
     BUILD_LOG_STREAM_MAX_ENTRIES: int = 10000
 
+    # Hadolint
+    HADOLINT_TIMEOUT_SECONDS: int = 30
+
     # Upload
     MAX_UPLOAD_SIZE_MB: int = 100
     PROJECTS_SOURCE_DIR: str = "/var/lib/dockerforge/projects"

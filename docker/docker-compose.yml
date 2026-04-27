@@ -57,7 +57,7 @@ services:
     restart: unless-stopped
     env_file:
       - ../backend/.env
-    command: fastapi dev --host 0.0.0.0
+    command: fastapi run --host 0.0.0.0
     ports:
       - "7000:8000"
     volumes:

@@ -1,0 +1,66 @@
+import json
+import subprocess
+
+from app.config import settings
+from app.core.exceptions import HadolintError
+from app.schemas.lint import LintIssue
+from loguru import logger
+
+
+def lint_dockerfile_content(dockerfile: str) -> list[LintIssue]:
+    if not dockerfile:
+        raise HadolintError(
+            message="Dockerfile content is required",
+            status_code=400,
+        )
+    try:
+        result = subprocess.run(
+            ["hadolint", "--format", "json", "-"],
+            input=dockerfile,
+            capture_output=True,
+            text=True,
+            timeout=settings.HADOLINT_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as e:
+        logger.exception("Hadolint binary not found on PATH")
+        raise HadolintError(
+            message="Hadolint is not installed on the host. "
+            "If you're running DockerForge without Docker, "
+            "install hadolint: https://github.com/hadolint/hadolint#install",
+            status_code=503,
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        logger.exception("Hadolint timed out")
+        raise HadolintError(
+            message="Hadolint timed out.",
+            status_code=408,
+        ) from e
+    except OSError as e:
+        logger.exception("Hadolint failed to execute")
+        raise HadolintError(
+            message="Hadolint failed to execute",
+            status_code=500,
+        ) from e
+
+    if result.returncode not in (0, 1):
+        logger.error(
+            f"Hadolint exited with code {result.returncode}. stderr: {result.stderr}"
+        )
+        raise HadolintError(
+            message="Hadolint failed due to an internal error",
+            status_code=500,
+        )
+
+    try:
+        raw_issues = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        logger.error(
+            f"Failed to parse hadolint output. "
+            f"stdout: {result.stdout!r}, stderr: {result.stderr!r}"
+        )
+        raise HadolintError(
+            message="Hadolint failed due to an internal error",
+            status_code=500,
+        ) from e
+
+    return [LintIssue.model_validate(item) for item in raw_issues]
