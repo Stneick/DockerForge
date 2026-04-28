@@ -1,4 +1,5 @@
-fastapi[standard]
+fastapi
+uvicorn[standard]
 sqlalchemy[asyncio]
 asyncpg
 alembic
@@ -8,9 +9,7 @@ PyJWT
 pwdlib[argon2]
 docker
 jinja2
-httpx
 python-multipart
 loguru
 aiofiles
-types-aiofiles
 arq

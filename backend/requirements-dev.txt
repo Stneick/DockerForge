@@ -1,5 +1,8 @@
 -r requirements.txt
 
+# FastAPI CLI
+fastapi-cli[standard]
+
 # Linting & formatting
 pre-commit
 black
@@ -8,3 +11,6 @@ ruff
 # Type checking
 mypy
 sqlalchemy[mypy]
+
+# Type stubs
+types-aiofiles

@@ -42,6 +42,24 @@ ENV/
 *.swp
 *.swo
 
+# Tests
+tests/
+.pytest_cache/
+coverage.xml
+.coverage
+htmlcov/
+
+# Cache
+.mypy_cache/
+# Logs
+logs/
+*.log
+
+# Docs / notes
+*.md
+*.txt
+!requirements.txt
+
 # Docker (Optional, but good practice)
 docker-compose.yml
 Dockerfile*
