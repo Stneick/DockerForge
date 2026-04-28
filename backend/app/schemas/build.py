@@ -115,3 +115,20 @@ class BuildComparisonResponse(BaseModel):
 class StreamEvent(BaseModel):
     status: str
     log: LogEntry | None = None
+
+
+class PushBuildRequest(BaseModel):
+    target_tag: str = Field(
+        ...,
+        min_length=1,
+        max_length=128,
+        description="Tag to push under, e.g. 'latest' or 'v1.0'",
+    )
+    repository: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Registry repository, e.g. 'myuser/myapp' or 'registry.example.com/myuser/myapp'",
+    )
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)

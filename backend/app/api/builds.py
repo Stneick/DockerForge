@@ -10,6 +10,7 @@ from app.schemas.build import (
     BuildDetail,
     BuildListResponse,
     BuildLogsResponse,
+    PushBuildRequest,
     TriggerBuildRequest,
 )
 from app.schemas.common import MessageResponse
@@ -20,7 +21,9 @@ from app.services.build_service import (
     get_build_detail,
     get_build_logs,
     list_builds,
+    push_build_file,
     stream_build_events,
+    stream_push_events,
     trigger_build,
 )
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -113,6 +116,47 @@ async def download_build(
     db: AsyncSession = Depends(get_db),
 ):
     return await download_build_file(project_id, build_id, current_user, db)
+
+
+@router.post(
+    "/{build_id}/push",
+    response_model=MessageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def push_build(
+    project_id: UUID,
+    build_id: UUID,
+    data: PushBuildRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+):
+    return await push_build_file(
+        project_id,
+        build_id,
+        data.target_tag,
+        data.repository,
+        data.username,
+        data.password,
+        current_user,
+        db,
+        redis,
+    )
+
+
+@router.get("/{build_id}/push/events")
+async def push_events(
+    project_id: UUID,
+    build_id: UUID,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+):
+    generator = await stream_push_events(
+        project_id, build_id, request, current_user, db, redis
+    )
+    return StreamingResponse(generator, media_type="text/event-stream")
 
 
 @router.post(

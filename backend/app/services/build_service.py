@@ -1,6 +1,7 @@
 import asyncio
 import json
 import math
+import threading
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -22,8 +23,10 @@ from app.schemas.build import (
 from app.schemas.common import MessageResponse, Pagination
 from app.schemas.project import Project as ProjectSchema
 from app.services import dockerfile_generator
-from app.services.docker_client import save_image
+from app.services.docker_client import iter_push_chunks, save_image
 from app.services.project_service import _get_project_or_404
+from docker.errors import APIError as DockerAPIError
+from docker.errors import ImageNotFound
 from fastapi import HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -420,3 +423,171 @@ async def cancel_running_build(
         message = "Cancel requested; build will stop shortly."
 
     return MessageResponse(message=message)
+
+
+# Strong references kept here so GC cannot collect tasks before they complete.
+_active_push_tasks: set[asyncio.Task] = set()
+
+
+async def _push_worker_task(
+    image_tag: str,
+    target_tag: str,
+    repository: str,
+    username: str,
+    password: str,
+    build_id: UUID,
+    redis: redis_async.Redis,
+) -> None:
+    stream_key = f"push:{build_id}"
+    loop = asyncio.get_running_loop()
+    q: asyncio.Queue[dict | None] = asyncio.Queue()
+
+    def worker() -> None:
+        try:
+            for chunk in iter_push_chunks(
+                image_tag, target_tag, repository, username, password
+            ):
+                loop.call_soon_threadsafe(q.put_nowait, chunk)
+            loop.call_soon_threadsafe(
+                q.put_nowait,
+                {
+                    "dockerforge_status": "success",
+                    "repository": repository,
+                    "tag": target_tag,
+                },
+            )
+        except ImageNotFound:
+            loop.call_soon_threadsafe(
+                q.put_nowait,
+                {
+                    "dockerforge_status": "error",
+                    "message": "Docker image not found locally; it may have been cleaned up",
+                },
+            )
+        except DockerAPIError as err:
+            explanation = getattr(err, "explanation", None) or str(err)
+            loop.call_soon_threadsafe(
+                q.put_nowait,
+                {
+                    "dockerforge_status": "error",
+                    "message": f"Registry push failed: {explanation}",
+                },
+            )
+        except Exception as err:
+            loop.call_soon_threadsafe(
+                q.put_nowait,
+                {"dockerforge_status": "error", "message": str(err)},
+            )
+        finally:
+            loop.call_soon_threadsafe(q.put_nowait, None)  # sentinel
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    try:
+        while True:
+            chunk = await q.get()
+
+            if chunk is None:
+                break
+
+            if "error" in chunk:
+                logger.error(f"[push:{build_id}] {chunk['error']}")
+            elif "status" in chunk:
+                logger.debug(
+                    f"[push:{build_id}] {chunk.get('status', '')} {chunk.get('id', '')}".strip()
+                )
+
+            await redis.xadd(
+                stream_key,
+                {"payload": json.dumps(chunk)},
+                maxlen=settings.BUILD_LOG_STREAM_MAX_ENTRIES,
+                approximate=True,
+            )
+
+            if "dockerforge_status" in chunk or "error" in chunk:
+                await redis.expire(stream_key, 3600)
+                break
+    except Exception as err:
+        logger.error(f"Push worker task crashed for build {build_id}: {err}")
+
+
+async def push_build_file(
+    project_id: UUID,
+    build_id: UUID,
+    target_tag: str,
+    repository: str,
+    username: str,
+    password: str,
+    user: User,
+    db: AsyncSession,
+    redis: redis_async.Redis,
+) -> MessageResponse:
+    build = await get_build_detail(project_id, build_id, user, db)
+
+    if build.status != BuildStatusEnum.success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only successful builds can be pushed",
+        )
+    if build.image_cleaned_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Build image has already been cleaned up; trigger a new build first",
+        )
+    if not build.image_tag:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Build has no image tag",
+        )
+
+    task = asyncio.create_task(
+        _push_worker_task(
+            build.image_tag, target_tag, repository, username, password, build_id, redis
+        )
+    )
+    _active_push_tasks.add(task)
+    task.add_done_callback(_active_push_tasks.discard)
+
+    return MessageResponse(message="Push started")
+
+
+async def stream_push_events(
+    project_id: UUID,
+    build_id: UUID,
+    request: Request,
+    user: User,
+    db: AsyncSession,
+    redis: redis_async.Redis,
+):
+    await _get_project_or_404(project_id, user, db)
+
+    result = await db.execute(
+        select(BuildModel).where(
+            BuildModel.id == build_id,
+            BuildModel.project_id == project_id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Build not found"
+        )
+
+    async def event_generator():
+        stream_key = f"push:{build_id}"
+        last_id = "0"
+        while True:
+            if await request.is_disconnected():
+                break
+            response = await redis.xread({stream_key: last_id}, block=1000)
+            if not response:
+                continue
+            for _stream_name, entries in response:
+                for entry_id, fields in entries:
+                    data_str = fields[b"payload"].decode("utf-8")
+                    yield f"data: {data_str}\n\n"
+                    last_id = entry_id
+                    parsed = json.loads(data_str)
+                    if "dockerforge_status" in parsed or "error" in parsed:
+                        return
+
+    return event_generator()

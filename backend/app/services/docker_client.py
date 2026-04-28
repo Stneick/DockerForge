@@ -315,3 +315,39 @@ def remove_image(tag: str) -> bool:
     except ImageNotFound:
         logger.debug(f"Image {tag} not found, already removed")
         return False
+
+
+@require_docker
+def iter_push_chunks(
+    tag: str,
+    target_tag: str,
+    repository: str,
+    username: str,
+    password: str,
+) -> Iterator[dict]:
+    client = _get_client()
+
+    image = client.images.get(tag)
+
+    image.tag(repository, tag=target_tag)
+
+    try:
+        resp = client.api.push(
+            repository=repository,
+            tag=target_tag,
+            stream=True,
+            decode=True,
+            auth_config={
+                "username": username,
+                "password": password,
+            },
+        )
+        yield from resp
+    finally:
+        # Always clean up the re-tag to avoid polluting the local image store.
+        try:
+            client.images.remove(f"{repository}:{target_tag}", force=True)
+        except Exception as e:
+            logger.warning(
+                f"Failed to remove re-tagged image {repository}:{target_tag}: {e}"
+            )
