@@ -2,9 +2,15 @@ import json
 import subprocess
 
 from app.config import settings
-from app.core.exceptions import HadolintError
 from app.schemas.lint import LintIssue
 from loguru import logger
+
+
+class HadolintError(Exception):
+    def __init__(self, message: str, status_code: int):
+        self.message = message
+        self.status_code = status_code
+        super().__init__(message)
 
 
 def lint_dockerfile_content(dockerfile: str) -> list[LintIssue]:

@@ -1,18 +1,22 @@
 import math
 from uuid import UUID
 
+from app.models import Build
+from app.models.build import BuildStatusEnum
 from app.models.project import Project as ProjectModel
 from app.models.user import User
 from app.schemas.common import MessageResponse, Pagination
 from app.schemas.project import (
+    CacheStat,
     CreateProjectRequest,
     Project,
     ProjectListResponse,
+    ProjectStats,
     UpdateProjectRequest,
 )
 from fastapi import HTTPException, status
 from loguru import logger
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -115,3 +119,68 @@ async def delete_project(
     await db.delete(project)
     await db.commit()
     return MessageResponse(message="Project deleted")
+
+
+async def get_project_stats(project: ProjectModel, db: AsyncSession) -> ProjectStats:
+    stmt = select(
+        func.count().label("total"),
+        func.count(case((Build.status == BuildStatusEnum.success, 1))).label(
+            "successful"
+        ),
+        func.count(case((Build.status == BuildStatusEnum.failed, 1))).label("failed"),
+        func.count(case((Build.status == BuildStatusEnum.cancelled, 1))).label(
+            "cancelled"
+        ),
+        func.avg(Build.duration_seconds).label("avg_duration"),
+        func.min(Build.duration_seconds).label("fastest"),
+        func.max(Build.duration_seconds).label("slowest"),
+        func.avg(Build.image_size_bytes).label("avg_size"),
+    ).where(Build.project_id == project.id)
+
+    row = (await db.execute(stmt)).one()
+
+    total = row.total or 0
+    successful = row.successful or 0
+
+    async def _cache_stat(no_cache_value: bool) -> CacheStat:
+        r = (
+            await db.execute(
+                select(
+                    func.count().label("build_count"),
+                    func.avg(Build.duration_seconds).label("avg"),
+                    func.min(Build.duration_seconds).label("min"),
+                    func.max(Build.duration_seconds).label("max"),
+                ).where(
+                    Build.project_id == project.id,
+                    Build.build_config["no_cache"].astext
+                    == str(no_cache_value).lower(),
+                )
+            )
+        ).one()
+        return CacheStat(
+            count=r.build_count,
+            avg_duration_seconds=round(r.avg, 2) if r.avg is not None else None,
+            min_duration_seconds=round(r.min, 2) if r.min is not None else None,
+            max_duration_seconds=round(r.max, 2) if r.max is not None else None,
+        )
+
+    return ProjectStats(
+        total_builds=total,
+        successful_builds=successful,
+        failed_builds=row.failed or 0,
+        cancelled_builds=row.cancelled or 0,
+        success_rate=round(successful / total, 4) if total > 0 else 0.0,
+        avg_duration_seconds=(
+            round(row.avg_duration, 2) if row.avg_duration is not None else None
+        ),
+        fastest_build_seconds=(
+            round(row.fastest, 2) if row.fastest is not None else None
+        ),
+        slowest_build_seconds=(
+            round(row.slowest, 2) if row.slowest is not None else None
+        ),
+        avg_image_size_bytes=int(row.avg_size) if row.avg_size is not None else None,
+        last_build_at=project.last_build_at,
+        cached_builds=await _cache_stat(False),
+        no_cache_builds=await _cache_stat(True),
+    )

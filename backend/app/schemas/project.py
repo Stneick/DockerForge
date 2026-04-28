@@ -162,3 +162,25 @@ class DockerfilePreviewResponse(BaseModel):
     dockerignore_content: str
     base_image: str
     warnings: list[str]
+
+
+class CacheStat(BaseModel):
+    count: int
+    avg_duration_seconds: float | None = None
+    min_duration_seconds: float | None = None
+    max_duration_seconds: float | None = None
+
+
+class ProjectStats(BaseModel):
+    total_builds: int
+    successful_builds: int
+    failed_builds: int
+    cancelled_builds: int
+    success_rate: float  # 0.0–1.0
+    avg_duration_seconds: float | None
+    fastest_build_seconds: float | None
+    slowest_build_seconds: float | None
+    avg_image_size_bytes: int | None
+    last_build_at: datetime | None
+    cached_builds: CacheStat
+    no_cache_builds: CacheStat

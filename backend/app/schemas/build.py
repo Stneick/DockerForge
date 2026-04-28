@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.core.utils import format_size
 from app.schemas.common import Pagination
@@ -56,6 +56,13 @@ class Build(BaseModel):
     finished_at: datetime | None = None
     duration_seconds: float | None = None
     image_cleaned_at: datetime | None = None
+    # Excluded from the response; only present so no_cache can be derived from it
+    build_config: dict | None = Field(default=None, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def no_cache(self) -> bool:
+        return bool((self.build_config or {}).get("no_cache", False))
 
 
 class ImageLayer(BaseModel):

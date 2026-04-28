@@ -3,7 +3,6 @@ from typing import Literal
 from uuid import UUID
 
 from app.core.dependencies import get_current_user, get_db
-from app.core.exceptions import HadolintError
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.lint import LintRequest, LintResponse
@@ -14,16 +13,18 @@ from app.schemas.project import (
     DockerfilePreviewResponse,
     Project,
     ProjectListResponse,
+    ProjectStats,
     SourceAnalysisResponse,
     UpdateProjectRequest,
 )
 from app.services.dockerfile_generator import generate_dockerfile, generate_dockerignore
-from app.services.lint_service import lint_dockerfile_content
+from app.services.lint_service import HadolintError, lint_dockerfile_content
 from app.services.project_service import (
     _get_project_or_404,
     create_project,
     delete_project,
     get_project,
+    get_project_stats,
     list_projects,
     update_project,
 )
@@ -192,3 +193,13 @@ async def lint_dockerfile(
     except HadolintError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     return LintResponse(issues=issues)
+
+
+@router.get("/{project_id}/stats", response_model=ProjectStats)
+async def project_stats(
+    project_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    project = await _get_project_or_404(project_id, current_user, db)
+    return await get_project_stats(project, db)
