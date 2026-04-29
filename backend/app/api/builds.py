@@ -127,9 +127,9 @@ async def push_build(
     project_id: UUID,
     build_id: UUID,
     data: PushBuildRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    redis: Redis = Depends(get_redis),
 ):
     return await push_build_file(
         project_id,
@@ -140,7 +140,7 @@ async def push_build(
         data.password,
         current_user,
         db,
-        redis,
+        request,
     )
 
 

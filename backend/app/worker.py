@@ -7,9 +7,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
+import redis as _redis_sync
 from arq import cron
 from arq.connections import RedisSettings
-from docker.errors import BuildError
+from docker.errors import APIError as DockerAPIError
+from docker.errors import BuildError, ImageNotFound
 from loguru import logger
 from sqlalchemy import select
 
@@ -24,6 +26,7 @@ from app.services.docker_client import (
     build_image,
     get_image_layers,
     get_image_size,
+    iter_push_chunks,
     prune_managed_dangling_images,
     remove_image,
 )
@@ -289,6 +292,73 @@ async def cleanup_image_task(ctx: dict, tag: str, build_id: UUID) -> str:
     return f"cleaned {tag}"
 
 
+async def run_push_task(
+    ctx: dict,
+    image_tag: str,
+    target_tag: str,
+    repository: str,
+    username: str,
+    password: str,
+    build_id: UUID,
+) -> str:
+    stream_key = f"push:{build_id}"
+    maxlen = settings.BUILD_LOG_STREAM_MAX_ENTRIES
+
+    def _stream_push() -> None:
+        r = _redis_sync.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
+        r.delete(stream_key)
+        terminal: dict = {}
+        try:
+            for chunk in iter_push_chunks(
+                image_tag, target_tag, repository, username, password
+            ):
+                if "error" in chunk:
+                    logger.error(f"[push:{build_id}] {chunk['error']}")
+                elif "status" in chunk:
+                    logger.debug(
+                        f"[push:{build_id}] {chunk.get('status', '')} {chunk.get('id', '')}".strip()
+                    )
+                r.xadd(
+                    stream_key,
+                    {"payload": json.dumps(chunk)},
+                    maxlen=maxlen,
+                    approximate=True,
+                )
+            terminal = {
+                "dockerforge_status": "success",
+                "repository": repository,
+                "tag": target_tag,
+            }
+        except ImageNotFound:
+            terminal = {
+                "dockerforge_status": "error",
+                "message": "Docker image not found locally; it may have been cleaned up",
+            }
+        except DockerAPIError as err:
+            explanation = getattr(err, "explanation", None) or str(err)
+            terminal = {
+                "dockerforge_status": "error",
+                "message": f"Registry push failed: {explanation}",
+            }
+        except Exception as err:
+            terminal = {"dockerforge_status": "error", "message": str(err)}
+        finally:
+            if terminal:
+                r.xadd(
+                    stream_key,
+                    {"payload": json.dumps(terminal)},
+                    maxlen=maxlen,
+                    approximate=True,
+                )
+                r.expire(stream_key, 3600)
+            r.close()
+
+    logger.info(f"Starting push for build {build_id} → {repository}:{target_tag}")
+    await asyncio.to_thread(_stream_push)
+    logger.info(f"Push task finished for build {build_id}")
+    return f"push {build_id} done"
+
+
 async def prune_managed_images_task(ctx: dict) -> str:
     result = await asyncio.to_thread(prune_managed_dangling_images, "10m")
     deleted = result.get("images_deleted", 0)
@@ -305,7 +375,7 @@ async def prune_managed_images_task(ctx: dict) -> str:
 
 # ARQ Configuration
 class WorkerSettings:
-    functions = [run_build_task, cleanup_image_task]
+    functions = [run_build_task, cleanup_image_task, run_push_task]
     cron_jobs = [
         cron(prune_managed_images_task, minute={0, 15, 30, 45}),
     ]
