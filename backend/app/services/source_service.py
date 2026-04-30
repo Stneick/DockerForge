@@ -202,6 +202,14 @@ async def _clone_repo(
 
     try:
         result = await asyncio.to_thread(_run_clone)
+    except FileNotFoundError as err:
+        logger.exception("git binary not found on PATH")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Git is not installed on the host. "
+            "If you're running DockerForge without Docker, "
+            "install git: https://git-scm.com/downloads",
+        ) from err
     except subprocess.TimeoutExpired as err:
         logger.warning(f"Git clone timed out for {clone_dir}")
         raise HTTPException(
