@@ -62,22 +62,34 @@ async def _extract_archive(temp_path: Path, extract_dir: Path, archive_type: str
         root = extract_dir.resolve()
 
         if archive_type == "zip":
-            with zipfile.ZipFile(temp_path) as zf:
-                for member in zf.infolist():
-                    target = (extract_dir / member.filename).resolve()
-                    if not target.is_relative_to(root):
-                        logger.error(
-                            f"Zip-slip blocked for extract_dir {root}: "
-                            f"entry {member.filename!r} resolves to {target}"
-                        )
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Invalid project source.",
-                        )
-                zf.extractall(extract_dir)
+            try:
+                with zipfile.ZipFile(temp_path) as zf:
+                    for member in zf.infolist():
+                        target = (extract_dir / member.filename).resolve()
+                        if not target.is_relative_to(root):
+                            logger.error(
+                                f"Zip-slip blocked for extract_dir {root}: "
+                                f"entry {member.filename!r} resolves to {target}"
+                            )
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Invalid project source.",
+                            )
+                    zf.extractall(extract_dir)
+            except zipfile.BadZipFile:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="The uploaded file is not a valid ZIP archive.",
+                ) from None
         else:
-            with tarfile.open(temp_path) as tf:
-                tf.extractall(extract_dir, filter="data")
+            try:
+                with tarfile.open(temp_path) as tf:
+                    tf.extractall(extract_dir, filter="data")
+            except (tarfile.ReadError, tarfile.CompressionError):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="The uploaded file is not a valid TAR archive.",
+                ) from None
 
     await asyncio.to_thread(_extract)
 
@@ -113,7 +125,11 @@ async def upload_project_source(
 
     extract_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
 
-    await _extract_archive(temp_path, extract_dir, archive_type)
+    try:
+        await _extract_archive(temp_path, extract_dir, archive_type)
+    except HTTPException:
+        temp_path.unlink(missing_ok=True)
+        raise
     temp_path.unlink()  # delete the archive
 
     analysis = await asyncio.to_thread(detect_language, extract_dir)
