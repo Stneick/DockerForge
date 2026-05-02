@@ -22,6 +22,7 @@ from app.services.build_service import (
     get_build_logs,
     list_builds,
     push_build_file,
+    retry_build,
     stream_build_events,
     stream_push_events,
     trigger_build,
@@ -157,6 +158,21 @@ async def push_events(
         project_id, build_id, request, current_user, db, redis
     )
     return StreamingResponse(generator, media_type="text/event-stream")
+
+
+@router.post(
+    "/{build_id}/retry",
+    response_model=BuildSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+async def retry(
+    project_id: UUID,
+    build_id: UUID,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await retry_build(project_id, build_id, current_user, db, request)
 
 
 @router.post(

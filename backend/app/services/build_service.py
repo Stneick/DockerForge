@@ -31,6 +31,36 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+async def _save_and_enqueue_build(
+    new_build: BuildModel,
+    project,
+    request_data: dict,
+    db: AsyncSession,
+    request: Request,
+) -> BuildModel:
+    project.total_builds += 1
+    project.last_build_at = datetime.now(UTC)
+
+    db.add(new_build)
+    await db.commit()
+    await db.refresh(project)
+    await db.refresh(new_build)
+
+    try:
+        arq_pool = request.app.state.arq_pool
+        await arq_pool.enqueue_job("run_build_task", new_build.id, request_data)
+    except Exception as e:
+        logger.error(f"Failed to enqueue build {new_build.id}: {e}")
+        new_build.status = BuildStatusEnum.failed
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Build queue unavailable. Please try again.",
+        ) from e
+
+    return new_build
+
+
 async def trigger_build(
     project_id: UUID,
     data: TriggerBuildRequest,
@@ -79,33 +109,61 @@ async def trigger_build(
             "no_cache": data.no_cache,
         },
     )
-    project.total_builds += 1
-    project.last_build_at = datetime.now(UTC)
 
-    db.add(new_build)
-    await db.commit()
-    await db.refresh(project)
-    await db.refresh(new_build)
+    return await _save_and_enqueue_build(
+        new_build, project, data.model_dump(), db, request
+    )
 
-    request_data = data.model_dump()
 
-    try:
-        arq_pool = request.app.state.arq_pool
-        await arq_pool.enqueue_job(
-            "run_build_task",  # name of the function in worker.py
-            new_build.id,
-            request_data,
+async def retry_build(
+    project_id: UUID,
+    build_id: UUID,
+    user: User,
+    db: AsyncSession,
+    request: Request,
+) -> BuildModel:
+    project = await _get_project_or_404(project_id, user, db)
+
+    result = await db.execute(
+        select(BuildModel).where(
+            BuildModel.id == build_id,
+            BuildModel.project_id == project.id,
         )
-    except Exception as e:
-        logger.error(f"Failed to enqueue build {new_build.id}: {e}")
-        new_build.status = BuildStatusEnum.failed
-        await db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Build queue unavailable. Please try again.",
-        ) from e
+    )
+    original_build = result.scalar_one_or_none()
 
-    return new_build
+    if not original_build:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Build not found"
+        )
+
+    if original_build.status in (BuildStatusEnum.pending, BuildStatusEnum.building):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Build is currently running. Cancel it before retrying.",
+        )
+
+    new_build = BuildModel(
+        project_id=project.id,
+        status=BuildStatusEnum.pending,
+        image_tag=original_build.image_tag,
+        dockerfile_content=original_build.dockerfile_content,
+        dockerignore_content=original_build.dockerignore_content,
+        trigger_type=TriggerTypeEnum.retry,
+        build_config=original_build.build_config,
+    )
+
+    original_config = original_build.build_config or {}
+    request_data = {
+        "build_args": original_config.get("build_args", []),
+        "env_vars": original_config.get("env_vars", []),
+        "no_cache": original_config.get("no_cache", False),
+        "image_tag": original_build.image_tag,
+        "custom_dockerfile": None,
+        "custom_dockerignore": None,
+    }
+
+    return await _save_and_enqueue_build(new_build, project, request_data, db, request)
 
 
 async def list_builds(
