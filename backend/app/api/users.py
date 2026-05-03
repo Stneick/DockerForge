@@ -26,7 +26,7 @@ async def update_me(
     return await update_user(data, current_user, db)
 
 
-@router.put("/me/password")
+@router.post("/me/password")
 async def change_password(
     data: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
