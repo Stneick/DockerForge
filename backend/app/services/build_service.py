@@ -22,7 +22,7 @@ from app.schemas.build import (
 from app.schemas.common import MessageResponse, Pagination
 from app.schemas.project import Project as ProjectSchema
 from app.services import dockerfile_generator
-from app.services.docker_client import save_image
+from app.services.docker_client import remove_image, save_image
 from app.services.project_service import _get_project_or_404
 from fastapi import HTTPException, Request, status
 from fastapi.responses import StreamingResponse
@@ -584,3 +584,49 @@ async def stream_push_events(
                         return
 
     return event_generator()
+
+
+async def delete_build_image(
+    project_id: UUID,
+    build_id: UUID,
+    user: User,
+    db: AsyncSession,
+) -> MessageResponse:
+    project = await _get_project_or_404(project_id, user, db)
+
+    result = await db.execute(
+        select(BuildModel).where(
+            BuildModel.id == build_id,
+            BuildModel.project_id == project.id,
+        )
+    )
+    build = result.scalar_one_or_none()
+
+    if not build:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Build not found"
+        )
+
+    if build.status != BuildStatusEnum.success:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only images from successful builds can be deleted",
+        )
+
+    if build.image_cleaned_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Build image has already been cleaned up",
+        )
+
+    if not build.image_tag:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Build has no image tag",
+        )
+
+    await asyncio.to_thread(remove_image, build.image_tag)
+    build.image_cleaned_at = datetime.now(UTC)
+    await db.commit()
+
+    return MessageResponse(message="Build image deleted")

@@ -246,7 +246,7 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                 f"Background build {build_id} finished with status: {final_status}"
             )
 
-        if final_status == BuildStatusEnum.success:
+        if final_status == BuildStatusEnum.success and settings.IMAGE_CLEANUP_ENABLED:
             try:
                 await redis.enqueue_job(
                     "cleanup_image_task",

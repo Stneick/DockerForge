@@ -41,7 +41,8 @@ class Settings(BaseSettings):
     BUILD_TIMEOUT_SECONDS: int = 600
     BUILD_MAX_CONCURRENT: int = 2
     BUILD_MEMORY_LIMIT: str = "512m"
-    IMAGE_TTL_SECONDS: int = 3600
+    IMAGE_CLEANUP_ENABLED: bool = True
+    IMAGE_TTL_SECONDS: int = 3600  # Only used if IMAGE_CLEANUP_ENABLED is True
     BUILD_LOG_STREAM_TTL_SECONDS: int = 300
     BUILD_LOG_STREAM_MAX_ENTRIES: int = 10000
 

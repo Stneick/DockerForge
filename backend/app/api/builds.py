@@ -16,6 +16,7 @@ from app.schemas.build import (
 from app.schemas.common import MessageResponse
 from app.services.build_service import (
     cancel_running_build,
+    delete_build_image,
     download_build_file,
     get_build_comparison,
     get_build_detail,
@@ -188,3 +189,17 @@ async def cancel_build(
     redis: Redis = Depends(get_redis),
 ):
     return await cancel_running_build(project_id, build_id, current_user, db, redis)
+
+
+@router.delete(
+    "/{build_id}/image",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def delete_build_image_route(
+    project_id: UUID,
+    build_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await delete_build_image(project_id, build_id, current_user, db)
