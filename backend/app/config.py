@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import re
 from functools import lru_cache
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 from urllib.parse import quote_plus
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-if TYPE_CHECKING:
-    from docker.api.build import _ContainerLimits
 
 
 class Settings(BaseSettings):
@@ -37,22 +32,14 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # Docker build
-    BUILD_TIMEOUT_SECONDS: int = 600
+    # Worker startup — changing these requires restarting the worker process
     BUILD_MAX_CONCURRENT: int = 2
-    BUILD_MEMORY_LIMIT: str = "512m"
-    IMAGE_CLEANUP_ENABLED: bool = True
-    IMAGE_TTL_SECONDS: int = 3600  # Only used if IMAGE_CLEANUP_ENABLED is True
-    BUILD_LOG_STREAM_TTL_SECONDS: int = 300
-    BUILD_LOG_STREAM_MAX_ENTRIES: int = 10000
-
-    # Hadolint
-    HADOLINT_TIMEOUT_SECONDS: int = 30
+    # Hard process-level kill ceiling for any single ARQ job.
+    # Must be larger than app_settings.build_timeout_seconds.
+    ARQ_JOB_TIMEOUT_SECONDS: int = 7800
 
     # Upload
-    MAX_UPLOAD_SIZE_MB: int = 100
     PROJECTS_SOURCE_DIR: str = "/var/lib/dockerforge/projects"
-    GIT_CLONE_TIMEOUT_SECONDS: int = 120
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000"
@@ -60,14 +47,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", case_sensitive=True, extra="ignore"
     )
-
-    @field_validator("BUILD_MEMORY_LIMIT")
-    @classmethod
-    def validate_memory(cls, v: str) -> str:
-        pattern = r"^\d+(k|m|g)$"
-        if not re.match(pattern, v.lower()):
-            raise ValueError("BUILD_MEMORY_LIMIT must be like '512m', '1g', or '128k'")
-        return v.lower()
 
     @property
     def DATABASE_URL(self) -> str:
@@ -80,18 +59,6 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
-
-    def parse_memory(self, mem_str: str) -> int:
-        units = {"k": 1024, "m": 1024**2, "g": 1024**3}
-        return int(mem_str[:-1]) * units[mem_str[-1].lower()]
-
-    @property
-    def container_limits(self) -> _ContainerLimits:
-        mem = self.parse_memory(self.BUILD_MEMORY_LIMIT)
-        return {
-            "memory": mem,
-            "memswap": mem,
-        }
 
 
 @lru_cache

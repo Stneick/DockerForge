@@ -16,6 +16,7 @@ from app.api.auth import router as auth_router
 from app.api.builds import router as builds_router
 from app.api.languages import router as languages_router
 from app.api.projects import router as projects_router
+from app.api.setting import router as settings_router
 from app.api.users import router as users_router
 from app.config import settings
 from app.core.logging import setup_logging
@@ -87,6 +88,7 @@ app.include_router(users_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(languages_router, prefix="/api/v1")
 app.include_router(builds_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
 
 
 @app.exception_handler(DockerDaemonUnavailableError)

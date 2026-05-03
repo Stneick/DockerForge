@@ -6,6 +6,7 @@ import redis.asyncio as redis_async
 from app.core.security import decode_token
 from app.database import async_session
 from app.models import User
+from app.models.settings import AppSettings
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyCookie
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,3 +46,13 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="user not found"
         )
     return user
+
+
+async def get_app_settings(db: AsyncSession = Depends(get_db)) -> AppSettings:
+    result = await db.get(AppSettings, 1)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="App settings not found",
+        )
+    return result

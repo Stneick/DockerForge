@@ -1,7 +1,8 @@
 from typing import Literal
 from uuid import UUID
 
-from app.core.dependencies import get_current_user, get_db, get_redis
+from app.core.dependencies import get_app_settings, get_current_user, get_db, get_redis
+from app.models.settings import AppSettings as AppSettingsModel
 from app.models.user import User
 from app.schemas.build import (
     Build as BuildSchema,
@@ -187,8 +188,11 @@ async def cancel_build(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
+    app_settings: AppSettingsModel = Depends(get_app_settings),
 ):
-    return await cancel_running_build(project_id, build_id, current_user, db, redis)
+    return await cancel_running_build(
+        project_id, build_id, current_user, db, redis, app_settings
+    )
 
 
 @router.delete(

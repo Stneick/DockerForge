@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import redis
@@ -12,6 +13,9 @@ from docker.errors import APIError, BuildError, DockerException, ImageNotFound
 from loguru import logger
 
 import docker
+
+if TYPE_CHECKING:
+    from docker.api.build import _ContainerLimits
 
 
 class DockerDaemonUnavailableError(Exception):
@@ -59,6 +63,9 @@ def build_image(
     dockerfile_content: str,
     dockerignore_content: str,
     tag: str,
+    build_timeout: int,
+    container_limits: "_ContainerLimits",
+    log_stream_max_entries: int,
     build_args: dict | None = None,
     no_cache: bool = False,
     build_id: UUID | None = None,
@@ -93,10 +100,10 @@ def build_image(
             buildargs=build_args or {},
             nocache=no_cache,
             rm=True,
-            timeout=settings.BUILD_TIMEOUT_SECONDS,
+            timeout=build_timeout,
             pull=True,
             forcerm=True,
-            container_limits=settings.container_limits,
+            container_limits=container_limits,
             decode=True,
             network_mode="bridge",
         )
@@ -128,7 +135,7 @@ def build_image(
                     redis_client.xadd(
                         f"build:{build_id}",
                         {"payload": cancel_event.model_dump_json()},
-                        maxlen=settings.BUILD_LOG_STREAM_MAX_ENTRIES,
+                        maxlen=log_stream_max_entries,
                         approximate=True,
                     )
                 except redis.exceptions.RedisError as pub_err:
@@ -168,7 +175,7 @@ def build_image(
                         redis_client.xadd(
                             f"build:{build_id}",
                             {"payload": event.model_dump_json()},
-                            maxlen=settings.BUILD_LOG_STREAM_MAX_ENTRIES,
+                            maxlen=log_stream_max_entries,
                             approximate=True,
                         )
                     line_counter += 1
@@ -196,7 +203,7 @@ def build_image(
                     redis_client.xadd(
                         f"build:{build_id}",
                         {"payload": event.model_dump_json()},
-                        maxlen=settings.BUILD_LOG_STREAM_MAX_ENTRIES,
+                        maxlen=log_stream_max_entries,
                         approximate=True,
                     )
 

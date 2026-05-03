@@ -5,10 +5,10 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import redis.asyncio as redis_async
-from app.config import settings
 from app.core.utils import format_size_diff
 from app.models.build import Build as BuildModel
 from app.models.build import BuildStatusEnum, TriggerTypeEnum
+from app.models.settings import AppSettings as AppSettingsModel
 from app.models.user import User
 from app.schemas.build import Build as BuildSchema
 from app.schemas.build import (
@@ -445,6 +445,7 @@ async def cancel_running_build(
     user: User,
     db: AsyncSession,
     redis: redis_async.Redis,
+    app_settings: AppSettingsModel,
 ) -> MessageResponse:
     project = await _get_project_or_404(project_id, user, db)
 
@@ -469,7 +470,7 @@ async def cancel_running_build(
     await redis.set(
         f"build:{build_id}:cancel",
         "1",
-        ex=settings.BUILD_TIMEOUT_SECONDS + 60,
+        ex=app_settings.build_timeout_seconds + 60,
     )
 
     if build.status == BuildStatusEnum.pending:

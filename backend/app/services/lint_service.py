@@ -1,7 +1,6 @@
 import json
 import subprocess
 
-from app.config import settings
 from app.schemas.lint import LintIssue
 from loguru import logger
 
@@ -13,7 +12,7 @@ class HadolintError(Exception):
         super().__init__(message)
 
 
-def lint_dockerfile_content(dockerfile: str) -> list[LintIssue]:
+def lint_dockerfile_content(dockerfile: str, timeout: int) -> list[LintIssue]:
     if not dockerfile:
         raise HadolintError(
             message="Dockerfile content is required",
@@ -25,7 +24,7 @@ def lint_dockerfile_content(dockerfile: str) -> list[LintIssue]:
             input=dockerfile,
             capture_output=True,
             text=True,
-            timeout=settings.HADOLINT_TIMEOUT_SECONDS,
+            timeout=timeout,
         )
     except FileNotFoundError as e:
         logger.exception("Hadolint binary not found on PATH")

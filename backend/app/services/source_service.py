@@ -95,7 +95,11 @@ async def _extract_archive(temp_path: Path, extract_dir: Path, archive_type: str
 
 
 async def upload_project_source(
-    project_id: UUID, file: UploadFile, user: User, db: AsyncSession
+    project_id: UUID,
+    file: UploadFile,
+    user: User,
+    db: AsyncSession,
+    max_upload_size_mb: int,
 ) -> SourceAnalysisResponse:
     project = await _get_project_or_404(project_id, user, db)
 
@@ -114,12 +118,12 @@ async def upload_project_source(
     async with aiofiles.open(temp_path, "wb") as f:
         while chunk := await file.read(1024 * 1024):  # 1MB chunks
             total_size += len(chunk)
-            if total_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+            if total_size > max_upload_size_mb * 1024 * 1024:
                 await f.close()
                 temp_path.unlink()  # delete the partial file
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File too large. Max: {settings.MAX_UPLOAD_SIZE_MB}MB",
+                    detail=f"File too large. Max: {max_upload_size_mb}MB",
                 )
             await f.write(chunk)
 
@@ -164,6 +168,7 @@ async def upload_project_source(
 async def _clone_repo(
     repo_url: str,
     clone_dir: Path,
+    git_clone_timeout_seconds: int,
     branch: str = "main",
     access_token: str | None = None,
 ):
@@ -193,7 +198,7 @@ async def _clone_repo(
             args,
             capture_output=True,
             text=True,
-            timeout=settings.GIT_CLONE_TIMEOUT_SECONDS,
+            timeout=git_clone_timeout_seconds,
             env={
                 **os.environ,
                 "GIT_TERMINAL_PROMPT": "0",
@@ -226,7 +231,11 @@ async def _clone_repo(
 
 
 async def clone_project_repo(
-    project_id: UUID, data: CloneRequest, user: User, db: AsyncSession
+    project_id: UUID,
+    data: CloneRequest,
+    user: User,
+    db: AsyncSession,
+    git_clone_timeout_seconds: int,
 ) -> SourceAnalysisResponse:
     project = await _get_project_or_404(project_id, user, db)
 
@@ -234,6 +243,7 @@ async def clone_project_repo(
     await _clone_repo(
         data.repo_url,
         clone_dir,
+        git_clone_timeout_seconds,
         data.branch,
         access_token=data.access_token,
     )

@@ -20,7 +20,9 @@ from app.database import async_session
 from app.models.build import Build as BuildModel
 from app.models.build import BuildStatusEnum
 from app.models.project import Project as ProjectModel
+from app.models.settings import AppSettings as AppSettingsModel
 from app.schemas.build import LogEntry, StreamEvent, TriggerBuildRequest
+from app.schemas.settings import AppSettings as AppSettingsSchema
 from app.services.docker_client import (
     BuildCancelled,
     build_image,
@@ -54,6 +56,12 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
         if not build_record:
             logger.error(f"Build {build_id} not found in database.")
             return "Build not found"
+
+        app_settings_orm = await db.get(AppSettingsModel, 1)
+        if app_settings_orm is None:
+            logger.error(f"App settings not found in database for build {build_id}")
+            return "App settings not found"
+        app_settings = AppSettingsSchema.model_validate(app_settings_orm)
 
         try:
             if await redis.exists(f"build:{build_id}:cancel"):
@@ -131,6 +139,9 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                     dockerfile_content=build_record.dockerfile_content,
                     dockerignore_content=build_record.dockerignore_content,
                     tag=clean_tag,
+                    build_timeout=app_settings.build_timeout_seconds,
+                    container_limits=app_settings.container_limits,
+                    log_stream_max_entries=app_settings.build_log_stream_max_entries,
                     build_args=formatted_build_args,
                     no_cache=data.no_cache,
                     build_id=build_id,
@@ -175,7 +186,7 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                     await redis.xadd(
                         f"build:{build_id}",
                         {"payload": event.model_dump_json()},
-                        maxlen=settings.BUILD_LOG_STREAM_MAX_ENTRIES,
+                        maxlen=app_settings.build_log_stream_max_entries,
                         approximate=True,
                     )
                 except Exception as pub_err:
@@ -235,7 +246,7 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                 )
                 await redis.xadd(f"build:{build_id}", {"payload": final_payload})
                 await redis.expire(
-                    f"build:{build_id}", settings.BUILD_LOG_STREAM_TTL_SECONDS
+                    f"build:{build_id}", app_settings.build_log_stream_ttl_seconds
                 )
             except Exception as pub_err:
                 logger.error(
@@ -246,13 +257,16 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                 f"Background build {build_id} finished with status: {final_status}"
             )
 
-        if final_status == BuildStatusEnum.success and settings.IMAGE_CLEANUP_ENABLED:
+        if (
+            final_status == BuildStatusEnum.success
+            and app_settings.image_cleanup_enabled
+        ):
             try:
                 await redis.enqueue_job(
                     "cleanup_image_task",
                     clean_tag,
                     build_id,
-                    _defer_by=timedelta(seconds=settings.IMAGE_TTL_SECONDS),
+                    _defer_by=timedelta(seconds=app_settings.image_ttl_seconds),
                 )
             except Exception as enqueue_err:
                 logger.warning(
@@ -302,7 +316,14 @@ async def run_push_task(
     build_id: UUID,
 ) -> str:
     stream_key = f"push:{build_id}"
-    maxlen = settings.BUILD_LOG_STREAM_MAX_ENTRIES
+    async with async_session() as db:
+        app_settings_orm = await db.get(AppSettingsModel, 1)
+        maxlen = (
+            app_settings_orm.build_log_stream_max_entries if app_settings_orm else 10000
+        )
+        stream_ttl = (
+            app_settings_orm.build_log_stream_ttl_seconds if app_settings_orm else 300
+        )
 
     def _stream_push() -> None:
         r = _redis_sync.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
@@ -350,7 +371,7 @@ async def run_push_task(
                     maxlen=maxlen,
                     approximate=True,
                 )
-                r.expire(stream_key, 3600)
+                r.expire(stream_key, stream_ttl)
             r.close()
 
     logger.info(f"Starting push for build {build_id} → {repository}:{target_tag}")
@@ -381,7 +402,7 @@ class WorkerSettings:
     ]
     redis_settings = RedisSettings(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
     max_jobs = settings.BUILD_MAX_CONCURRENT
-    job_timeout = settings.BUILD_TIMEOUT_SECONDS + 60  # buffer for cleanup
+    job_timeout = settings.ARQ_JOB_TIMEOUT_SECONDS
     max_tries = 1
     keep_result = 0
     allow_abort_jobs = True

@@ -2,7 +2,8 @@ import asyncio
 from typing import Literal
 from uuid import UUID
 
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_app_settings, get_current_user, get_db
+from app.models.settings import AppSettings as AppSettingsModel
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.lint import LintRequest, LintResponse
@@ -94,8 +95,11 @@ async def upload_source(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    app_settings: AppSettingsModel = Depends(get_app_settings),
 ):
-    return await upload_project_source(project_id, file, current_user, db)
+    return await upload_project_source(
+        project_id, file, current_user, db, app_settings.max_upload_size_mb
+    )
 
 
 @router.post("/{project_id}/clone", response_model=SourceAnalysisResponse)
@@ -104,8 +108,11 @@ async def clone_source(
     data: CloneRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    app_settings: AppSettingsModel = Depends(get_app_settings),
 ):
-    return await clone_project_repo(project_id, data, current_user, db)
+    return await clone_project_repo(
+        project_id, data, current_user, db, app_settings.git_clone_timeout_seconds
+    )
 
 
 @router.post("/{project_id}/detect", response_model=SourceAnalysisResponse)
@@ -169,6 +176,7 @@ async def lint_dockerfile(
     body: LintRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    app_settings: AppSettingsModel = Depends(get_app_settings),
 ):
     project = await _get_project_or_404(project_id, current_user, db)
 
@@ -189,7 +197,9 @@ async def lint_dockerfile(
             ) from e
 
     try:
-        issues = await asyncio.to_thread(lint_dockerfile_content, dockerfile)
+        issues = await asyncio.to_thread(
+            lint_dockerfile_content, dockerfile, app_settings.hadolint_timeout_seconds
+        )
     except HadolintError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     return LintResponse(issues=issues)
