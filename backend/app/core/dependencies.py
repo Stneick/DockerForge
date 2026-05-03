@@ -6,9 +6,12 @@ import redis.asyncio as redis_async
 from app.core.security import decode_token
 from app.database import async_session
 from app.models import User
+from app.models.project import Project as ProjectModel
 from app.models.settings import AppSettings
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyCookie
+from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -46,6 +49,28 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="user not found"
         )
     return user
+
+
+async def get_project(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProjectModel:
+    result = await db.execute(select(ProjectModel).where(ProjectModel.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+    if project.user_id != current_user.id:
+        logger.warning(
+            f"User {current_user.id} attempted to access project {project_id} owned by {project.user_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+    return project
 
 
 async def get_app_settings(db: AsyncSession = Depends(get_db)) -> AppSettings:

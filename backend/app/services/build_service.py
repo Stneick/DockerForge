@@ -8,8 +8,8 @@ import redis.asyncio as redis_async
 from app.core.utils import format_size_diff
 from app.models.build import Build as BuildModel
 from app.models.build import BuildStatusEnum, TriggerTypeEnum
+from app.models.project import Project as ProjectModel
 from app.models.settings import AppSettings as AppSettingsModel
-from app.models.user import User
 from app.schemas.build import Build as BuildSchema
 from app.schemas.build import (
     BuildComparisonResponse,
@@ -23,7 +23,6 @@ from app.schemas.common import MessageResponse, Pagination
 from app.schemas.project import Project as ProjectSchema
 from app.services import dockerfile_generator
 from app.services.docker_client import remove_image, save_image
-from app.services.project_service import _get_project_or_404
 from fastapi import HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -62,14 +61,11 @@ async def _save_and_enqueue_build(
 
 
 async def trigger_build(
-    project_id: UUID,
+    project: ProjectModel,
     data: TriggerBuildRequest,
-    current_user: User,
     db: AsyncSession,
     request: Request,
 ) -> BuildModel:
-    project = await _get_project_or_404(project_id, current_user, db)
-
     if data.custom_dockerfile:
         dockerfile_content = data.custom_dockerfile
     else:
@@ -116,14 +112,11 @@ async def trigger_build(
 
 
 async def retry_build(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
-    user: User,
     db: AsyncSession,
     request: Request,
 ) -> BuildModel:
-    project = await _get_project_or_404(project_id, user, db)
-
     result = await db.execute(
         select(BuildModel).where(
             BuildModel.id == build_id,
@@ -167,15 +160,12 @@ async def retry_build(
 
 
 async def list_builds(
-    project_id: UUID,
-    user: User,
+    project: ProjectModel,
     db: AsyncSession,
     page: int,
     per_page: int,
     status: str | None = None,
 ) -> BuildListResponse:
-    project = await _get_project_or_404(project_id, user, db)
-
     conditions = [
         BuildModel.project_id == project.id,
     ]
@@ -213,13 +203,10 @@ async def list_builds(
 
 
 async def get_build_detail(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
-    user: User,
     db: AsyncSession,
 ) -> BuildDetail:
-    project = await _get_project_or_404(project_id, user, db)
-
     query = select(BuildModel).where(
         BuildModel.id == build_id,
         BuildModel.project_id == project.id,
@@ -236,13 +223,10 @@ async def get_build_detail(
 
 
 async def get_build_logs(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
-    user: User,
     db: AsyncSession,
 ) -> BuildLogsResponse:
-    project = await _get_project_or_404(project_id, user, db)
-
     query = select(BuildModel).where(
         BuildModel.id == build_id,
         BuildModel.project_id == project.id,
@@ -272,15 +256,12 @@ async def get_build_logs(
 
 
 async def stream_build_events(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
     request: Request,
-    user: User,
     db: AsyncSession,
     redis: redis_async.Redis,
 ):
-    project = await _get_project_or_404(project_id, user, db)
-
     query = select(BuildModel).where(
         BuildModel.id == build_id,
         BuildModel.project_id == project.id,
@@ -344,12 +325,11 @@ async def stream_build_events(
 
 
 async def download_build_file(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
-    user: User,
     db: AsyncSession,
 ) -> StreamingResponse:
-    build = await get_build_detail(project_id, build_id, user, db)
+    build = await get_build_detail(project, build_id, db)
     if build.status != BuildStatusEnum.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -377,14 +357,13 @@ async def download_build_file(
 
 
 async def get_build_comparison(
-    project_id: UUID,
+    project: ProjectModel,
     build_a_id: UUID,
     build_b_id: UUID,
-    user: User,
     db: AsyncSession,
 ) -> BuildComparisonResponse:
-    build_a = await get_build_detail(project_id, build_a_id, user, db)
-    build_b = await get_build_detail(project_id, build_b_id, user, db)
+    build_a = await get_build_detail(project, build_a_id, db)
+    build_b = await get_build_detail(project, build_b_id, db)
 
     if (
         build_a.status != BuildStatusEnum.success
@@ -440,15 +419,12 @@ async def get_build_comparison(
 
 
 async def cancel_running_build(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
-    user: User,
     db: AsyncSession,
     redis: redis_async.Redis,
     app_settings: AppSettingsModel,
 ) -> MessageResponse:
-    project = await _get_project_or_404(project_id, user, db)
-
     query = select(BuildModel).where(
         BuildModel.id == build_id,
         BuildModel.project_id == project.id,
@@ -482,17 +458,16 @@ async def cancel_running_build(
 
 
 async def push_build_file(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
     target_tag: str,
     repository: str,
     username: str,
     password: str,
-    user: User,
     db: AsyncSession,
     request: Request,
 ) -> MessageResponse:
-    build = await get_build_detail(project_id, build_id, user, db)
+    build = await get_build_detail(project, build_id, db)
 
     if build.status != BuildStatusEnum.success:
         raise HTTPException(
@@ -533,15 +508,12 @@ async def push_build_file(
 
 
 async def stream_push_events(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
     request: Request,
-    user: User,
     db: AsyncSession,
     redis: redis_async.Redis,
 ):
-    project = await _get_project_or_404(project_id, user, db)
-
     result = await db.execute(
         select(BuildModel).where(
             BuildModel.id == build_id,
@@ -588,13 +560,10 @@ async def stream_push_events(
 
 
 async def delete_build_image(
-    project_id: UUID,
+    project: ProjectModel,
     build_id: UUID,
-    user: User,
     db: AsyncSession,
 ) -> MessageResponse:
-    project = await _get_project_or_404(project_id, user, db)
-
     result = await db.execute(
         select(BuildModel).where(
             BuildModel.id == build_id,

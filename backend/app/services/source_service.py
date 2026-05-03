@@ -6,19 +6,17 @@ import subprocess
 import tarfile
 import zipfile
 from pathlib import Path
-from uuid import UUID
 
 import aiofiles
 from app.config import settings
 from app.core.constants import ALLOWED_EXTENSIONS
 from app.models.project import LanguageEnum, SourceTypeEnum
-from app.models.user import User
+from app.models.project import Project as ProjectModel
 from app.schemas.project import (
     CloneRequest,
     SourceAnalysisResponse,
 )
 from app.services.detector import detect_language
-from app.services.project_service import _get_project_or_404
 from fastapi import HTTPException, UploadFile, status
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,21 +93,18 @@ async def _extract_archive(temp_path: Path, extract_dir: Path, archive_type: str
 
 
 async def upload_project_source(
-    project_id: UUID,
+    project: ProjectModel,
     file: UploadFile,
-    user: User,
     db: AsyncSession,
     max_upload_size_mb: int,
 ) -> SourceAnalysisResponse:
-    project = await _get_project_or_404(project_id, user, db)
-
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required"
         )
 
     archive_type = _validate_archive(file.filename)
-    project_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id)
+    project_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project.id)
     project_dir.mkdir(parents=True, exist_ok=True)
     suffix = ".zip" if archive_type == "zip" else ".tar.gz"
     temp_path = project_dir / f"upload{suffix}"
@@ -127,7 +122,7 @@ async def upload_project_source(
                 )
             await f.write(chunk)
 
-    extract_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
+    extract_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project.id) / "source"
 
     try:
         await _extract_archive(temp_path, extract_dir, archive_type)
@@ -231,15 +226,12 @@ async def _clone_repo(
 
 
 async def clone_project_repo(
-    project_id: UUID,
+    project: ProjectModel,
     data: CloneRequest,
-    user: User,
     db: AsyncSession,
     git_clone_timeout_seconds: int,
 ) -> SourceAnalysisResponse:
-    project = await _get_project_or_404(project_id, user, db)
-
-    clone_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
+    clone_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project.id) / "source"
     await _clone_repo(
         data.repo_url,
         clone_dir,
@@ -279,17 +271,15 @@ async def clone_project_repo(
 
 
 async def redetect_project(
-    project_id: UUID, user: User, db: AsyncSession
+    project: ProjectModel, db: AsyncSession
 ) -> SourceAnalysisResponse:
-    project = await _get_project_or_404(project_id, user, db)
-
     if not project.source_uploaded:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No source code uploaded yet",
         )
 
-    source_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project_id) / "source"
+    source_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project.id) / "source"
     if not source_dir.exists():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

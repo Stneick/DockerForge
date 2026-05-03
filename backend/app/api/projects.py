@@ -1,8 +1,13 @@
 import asyncio
 from typing import Literal
-from uuid import UUID
 
-from app.core.dependencies import get_app_settings, get_current_user, get_db
+from app.core.dependencies import (
+    get_app_settings,
+    get_current_user,
+    get_db,
+    get_project,
+)
+from app.models.project import Project as ProjectModel
 from app.models.settings import AppSettings as AppSettingsModel
 from app.models.user import User
 from app.schemas.common import MessageResponse
@@ -21,10 +26,8 @@ from app.schemas.project import (
 from app.services.dockerfile_generator import generate_dockerfile, generate_dockerignore
 from app.services.lint_service import HadolintError, lint_dockerfile_content
 from app.services.project_service import (
-    _get_project_or_404,
     create_project,
     delete_project,
-    get_project,
     get_project_stats,
     list_projects,
     update_project,
@@ -63,77 +66,67 @@ async def list_all(
 
 @router.get("/{project_id}", response_model=Project)
 async def get_one(
-    project_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    project: ProjectModel = Depends(get_project),
 ):
-    return await get_project(project_id, current_user, db)
+    return Project.model_validate(project)
 
 
 @router.patch("/{project_id}", response_model=Project)
 async def update(
-    project_id: UUID,
     data: UpdateProjectRequest,
-    current_user: User = Depends(get_current_user),
+    project: ProjectModel = Depends(get_project),
     db: AsyncSession = Depends(get_db),
 ):
-    return await update_project(project_id, data, current_user, db)
+    return await update_project(project, data, db)
 
 
 @router.delete("/{project_id}", response_model=MessageResponse)
 async def delete(
-    project_id: UUID,
-    current_user: User = Depends(get_current_user),
+    project: ProjectModel = Depends(get_project),
     db: AsyncSession = Depends(get_db),
 ):
-    return await delete_project(project_id, current_user, db)
+    return await delete_project(project, db)
 
 
 @router.post("/{project_id}/upload", response_model=SourceAnalysisResponse)
 async def upload_source(
-    project_id: UUID,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    project: ProjectModel = Depends(get_project),
     db: AsyncSession = Depends(get_db),
     app_settings: AppSettingsModel = Depends(get_app_settings),
 ):
     return await upload_project_source(
-        project_id, file, current_user, db, app_settings.max_upload_size_mb
+        project, file, db, app_settings.max_upload_size_mb
     )
 
 
 @router.post("/{project_id}/clone", response_model=SourceAnalysisResponse)
 async def clone_source(
-    project_id: UUID,
     data: CloneRequest,
-    current_user: User = Depends(get_current_user),
+    project: ProjectModel = Depends(get_project),
     db: AsyncSession = Depends(get_db),
     app_settings: AppSettingsModel = Depends(get_app_settings),
 ):
     return await clone_project_repo(
-        project_id, data, current_user, db, app_settings.git_clone_timeout_seconds
+        project, data, db, app_settings.git_clone_timeout_seconds
     )
 
 
 @router.post("/{project_id}/detect", response_model=SourceAnalysisResponse)
 async def detect_source(
-    project_id: UUID,
-    current_user: User = Depends(get_current_user),
+    project: ProjectModel = Depends(get_project),
     db: AsyncSession = Depends(get_db),
 ):
-    return await redetect_project(project_id, current_user, db)
+    return await redetect_project(project, db)
 
 
 @router.post(
     "/{project_id}/dockerfile/preview", response_model=DockerfilePreviewResponse
 )
 async def preview_dockerfile(
-    project_id: UUID,
     overrides: DockerfileOverrides | None = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    project: ProjectModel = Depends(get_project),
 ):
-    project = await _get_project_or_404(project_id, current_user, db)
     project_schema = Project.model_validate(project)
 
     if overrides is not None:
@@ -172,14 +165,10 @@ async def preview_dockerfile(
 
 @router.post("/{project_id}/dockerfile/lint", response_model=LintResponse)
 async def lint_dockerfile(
-    project_id: UUID,
     body: LintRequest | None = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    project: ProjectModel = Depends(get_project),
     app_settings: AppSettingsModel = Depends(get_app_settings),
 ):
-    project = await _get_project_or_404(project_id, current_user, db)
-
     dockerfile = body.dockerfile if body else None
 
     if dockerfile is None:
@@ -207,9 +196,7 @@ async def lint_dockerfile(
 
 @router.get("/{project_id}/stats", response_model=ProjectStats)
 async def project_stats(
-    project_id: UUID,
-    current_user: User = Depends(get_current_user),
+    project: ProjectModel = Depends(get_project),
     db: AsyncSession = Depends(get_db),
 ):
-    project = await _get_project_or_404(project_id, current_user, db)
     return await get_project_stats(project, db)

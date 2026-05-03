@@ -1,5 +1,4 @@
 import math
-from uuid import UUID
 
 from app.models import Build
 from app.models.build import BuildStatusEnum
@@ -14,30 +13,8 @@ from app.schemas.project import (
     ProjectStats,
     UpdateProjectRequest,
 )
-from fastapi import HTTPException, status
-from loguru import logger
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-
-async def _get_project_or_404(
-    project_id: UUID, user: User, db: AsyncSession
-) -> ProjectModel:
-    result = await db.execute(select(ProjectModel).where(ProjectModel.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
-        )
-    if project.user_id != user.id:
-        logger.warning(
-            f"User {user.id} attempted to access project {project_id} owned by {project.user_id}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-    return project
 
 
 async def create_project(
@@ -94,16 +71,9 @@ async def list_projects(
     )
 
 
-async def get_project(project_id: UUID, user: User, db: AsyncSession) -> Project:
-    project = await _get_project_or_404(project_id, user, db)
-    return Project.model_validate(project)
-
-
 async def update_project(
-    project_id: UUID, data: UpdateProjectRequest, user: User, db: AsyncSession
+    project: ProjectModel, data: UpdateProjectRequest, db: AsyncSession
 ) -> Project:
-    project = await _get_project_or_404(project_id, user, db)
-
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
 
@@ -112,10 +82,7 @@ async def update_project(
     return Project.model_validate(project)
 
 
-async def delete_project(
-    project_id: UUID, user: User, db: AsyncSession
-) -> MessageResponse:
-    project = await _get_project_or_404(project_id, user, db)
+async def delete_project(project: ProjectModel, db: AsyncSession) -> MessageResponse:
     await db.delete(project)
     await db.commit()
     return MessageResponse(message="Project deleted")
