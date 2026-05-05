@@ -2,6 +2,7 @@ import asyncio
 import json
 import math
 from datetime import UTC, datetime
+from difflib import SequenceMatcher
 from uuid import UUID
 
 import redis.asyncio as redis_async
@@ -378,33 +379,41 @@ async def get_build_comparison(
     size_b = build_b.image_size_bytes or 0
     size_diff = size_b - size_a
 
-    # TODO: replace with LCS-based diff using difflib.SequenceMatcher
-    # Currently matches by exact instruction string, so modified instructions appear
-    # as separate "removed" + "added" instead of "changed".
-    layers_a = {layer.instruction: layer for layer in (build_a.layers or [])}
-    layers_b = {layer.instruction: layer for layer in (build_b.layers or [])}
-    all_instructions = list(layers_a.keys()) + [
-        k for k in layers_b if k not in layers_a
-    ]
+    seq_a = build_a.layers or []
+    seq_b = build_b.layers or []
+
+    matcher = SequenceMatcher(
+        None,
+        [layer.instruction for layer in seq_a],
+        [layer.instruction for layer in seq_b],
+        autojunk=False,
+    )
     layer_comparison = []
-    for instruction in all_instructions:
-        a = layers_a.get(instruction)
-        b = layers_b.get(instruction)
-        if a and b:
-            diff_status = "changed" if a.size_bytes != b.size_bytes else "unchanged"
-        elif b:
-            diff_status = "added"
-        else:
-            diff_status = "removed"
-        layer_comparison.append(
-            {
-                "instruction": instruction,
-                "size_a": a.size_bytes if a else None,
-                "size_b": b.size_bytes if b else None,
-                "diff_bytes": (b.size_bytes if b else 0) - (a.size_bytes if a else 0),
-                "status": diff_status,
-            }
-        )
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        for k in range(max(i2 - i1, j2 - j1)):
+            a = seq_a[i1 + k] if i1 + k < i2 else None
+            b = seq_b[j1 + k] if j1 + k < j2 else None
+
+            if tag == "equal":
+                diff_status = "unchanged"
+            elif a and b:
+                diff_status = "changed"
+            elif b:
+                diff_status = "added"
+            else:
+                diff_status = "removed"
+
+            layer_comparison.append(
+                {
+                    "instruction": (b or a).instruction,  # type: ignore[union-attr]
+                    "size_a": a.size_bytes if a else None,
+                    "size_b": b.size_bytes if b else None,
+                    "diff_bytes": (b.size_bytes if b else 0)
+                    - (a.size_bytes if a else 0),
+                    "status": diff_status,
+                }
+            )
 
     return BuildComparisonResponse(
         build_a=build_a,
