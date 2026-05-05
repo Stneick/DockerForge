@@ -48,7 +48,7 @@ def require_docker(func):
         try:
             _get_client().ping()
         except DockerException as e:
-            logger.error(f"Docker check failed before calling {func.__name__}: {e}")
+            logger.exception(f"Docker check failed before calling {func.__name__}")
             raise DockerDaemonUnavailableError(
                 "Docker daemon is not running. Please start Docker."
             ) from e
@@ -216,8 +216,8 @@ def build_image(
         raise
     except BuildError:
         raise
-    except APIError as err:
-        logger.error(f"Docker API error during build: {err}")
+    except APIError:
+        logger.exception("Docker API error during build")
         raise
 
     finally:

@@ -59,9 +59,8 @@ def lint_dockerfile_content(dockerfile: str, timeout: int) -> list[LintIssue]:
     try:
         raw_issues = json.loads(result.stdout)
     except json.JSONDecodeError as e:
-        logger.error(
-            f"Failed to parse hadolint output. "
-            f"stdout: {result.stdout!r}, stderr: {result.stderr!r}"
+        logger.exception(
+            f"Failed to parse hadolint output. stdout: {result.stdout!r}, stderr: {result.stderr!r}"
         )
         raise HadolintError(
             message="Hadolint failed due to an internal error",

@@ -50,7 +50,7 @@ async def _save_and_enqueue_build(
         arq_pool = request.app.state.arq_pool
         await arq_pool.enqueue_job("run_build_task", new_build.id, request_data)
     except Exception as e:
-        logger.error(f"Failed to enqueue build {new_build.id}: {e}")
+        logger.exception(f"Failed to enqueue build {new_build.id}")
         new_build.status = BuildStatusEnum.failed
         await db.commit()
         raise HTTPException(
@@ -293,9 +293,9 @@ async def stream_build_events(
                 response = await redis.xread(
                     {stream_key: last_id}, block=1000
                 )  # 1 second
-            except ConnectionError as e:
-                logger.error(
-                    f"Redis connection lost during live stream for build {build_id}: {e}"
+            except ConnectionError:
+                logger.exception(
+                    f"Redis connection lost during live stream for build {build_id}"
                 )
                 error_payload = json.dumps(
                     {
@@ -507,7 +507,7 @@ async def push_build_file(
             _job_id=f"push:{build_id}",
         )
     except Exception as e:
-        logger.error(f"Failed to enqueue push for build {build_id}: {e}")
+        logger.exception(f"Failed to enqueue push for build {build_id}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Push queue unavailable. Please try again.",
@@ -542,9 +542,9 @@ async def stream_push_events(
                 break
             try:
                 response = await redis.xread({stream_key: last_id}, block=1000)
-            except ConnectionError as e:
-                logger.error(
-                    f"Redis connection lost during push stream for build {build_id}: {e}"
+            except ConnectionError:
+                logger.exception(
+                    f"Redis connection lost during push stream for build {build_id}"
                 )
                 error_payload = json.dumps(
                     {

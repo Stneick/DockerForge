@@ -24,8 +24,8 @@ def _collect_files(source_dir: Path) -> dict:
             "extensions": {f.suffix.lower() for f in all_files},
             "root_files": {f.name for f in source_dir.iterdir() if f.is_file()},
         }
-    except OSError as err:
-        logger.error(f"Failed to scan source directory {source_dir}: {err}")
+    except OSError:
+        logger.exception(f"Failed to scan source directory {source_dir}")
         return {"extensions": set(), "root_files": set()}
 
 

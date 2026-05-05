@@ -202,7 +202,7 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
 
         except Exception as e:
             build_record.status = BuildStatusEnum.failed
-            logger.error(f"Build {build_id} failed with unknown error: {e}")
+            logger.exception(f"Build {build_id} failed with unknown error")
             logs.append(
                 {
                     "line": len(logs) + 1,  # add it to the end
@@ -232,10 +232,8 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
 
             try:
                 await db.commit()
-            except Exception as commit_err:
-                logger.error(
-                    f"Failed to persist final state for build {build_id}: {commit_err}"
-                )
+            except Exception:
+                logger.exception(f"Failed to persist final state for build {build_id}")
 
             try:
                 final_payload = json.dumps(
@@ -248,10 +246,8 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
                 await redis.expire(
                     f"build:{build_id}", app_settings.build_log_stream_ttl_seconds
                 )
-            except Exception as pub_err:
-                logger.error(
-                    f"Failed to publish final status for build {build_id}: {pub_err}"
-                )
+            except Exception:
+                logger.exception(f"Failed to publish final status for build {build_id}")
 
             logger.info(
                 f"Background build {build_id} finished with status: {final_status}"

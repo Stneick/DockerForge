@@ -34,7 +34,6 @@ async def get_current_user(
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":
-            # TODO maybe change message to just "Invalid token" after frontend is done
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type"
             )
