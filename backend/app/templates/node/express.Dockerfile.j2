@@ -1,22 +1,27 @@
-FROM {{ base_image | default("node:20-slim", true) }}
+# syntax=docker/dockerfile:1
+FROM {{ base_image | default("node:20-slim", true) }} AS deps
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev || npm install --omit=dev
 
-COPY . .
+FROM {{ base_image | default("node:20-slim", true) }} AS runtime
 
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser && \
-    chown -R appuser:appgroup /app
-USER appuser
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT={{ port | default(3000, true) }}
 
 {% for env in env_vars %}
 ENV {{ env.key }}={{ env.value }}
 {% endfor %}
 
-ENV NODE_ENV=production
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node . .
+
+USER node
 
 EXPOSE {{ port | default(3000, true) }}
 
-CMD {{ startup_command | default("node index.js", true) | tojson }}
+CMD ["sh", "-c", "{{ startup_command | default('node index.js', true) }}"]

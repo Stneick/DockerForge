@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM {{ base_image | default("rust:1.77-slim-bookworm", true) }} AS builder
 
 WORKDIR /app
@@ -6,28 +7,19 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends pkg-config libssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml Cargo.lock ./
-
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src target/release/deps/{{ binary_name | default("app", true) }}*
-
-COPY src ./src
+COPY . .
 RUN cargo build --release
 
-
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
+    apt-get install -y --no-install-recommends ca-certificates libssl3 && \
     rm -rf /var/lib/apt/lists/* && \
     addgroup --system appgroup && \
-    adduser --system --ingroup appgroup appuser
+    adduser --system --ingroup appgroup --no-create-home appuser
 
 WORKDIR /app
-
-COPY --from=builder /app/target/release/{{ binary_name | default("app", true) }} .
+COPY --from=builder --chown=appuser:appgroup /app/target/release/{{ binary_name | default("app", true) }} .
 
 USER appuser
 

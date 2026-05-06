@@ -1,23 +1,23 @@
+# syntax=docker/dockerfile:1
 FROM {{ base_image | default("gcc:13-bookworm", true) }} AS builder
 
-WORKDIR /app
+WORKDIR /src
 
 COPY . .
 
-RUN make -j$(nproc)
+RUN make -j"$(nproc)"
 
-
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
+    apt-get install -y --no-install-recommends ca-certificates libstdc++6 && \
     rm -rf /var/lib/apt/lists/* && \
     addgroup --system appgroup && \
-    adduser --system --ingroup appgroup appuser
+    adduser --system --ingroup appgroup --no-create-home appuser
 
 WORKDIR /app
 
-COPY --from=builder /app/{{ binary_name | default("app", true) }} .
+COPY --from=builder --chown=appuser:appgroup /src/{{ build_output_dir + '/' if build_output_dir else '' }}{{ binary_name | default("app", true) }} .
 
 USER appuser
 

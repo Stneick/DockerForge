@@ -1,0 +1,18 @@
+failure-threshold: warning
+
+ignored:
+  # Pin versions in apt-get install. We deliberately use unpinned packages so
+  # the templates keep working as Debian rolls security updates and aged-out
+  # versions disappear from the apt repos.
+  - DL3008
+  # Pin versions in apk add. Same reasoning as DL3008 for Alpine.
+  - DL3018
+  # Pin versions with pip install. Pinning pip itself breaks reproducibly when
+  # PyPI rotates and offers no real benefit for a starter template.
+  - DL3013
+  # Pin versions in npm install. Project deps are pinned by package-lock.json,
+  # not by the Dockerfile.
+  - DL3016
+
+trustedRegistries:
+  - docker.io

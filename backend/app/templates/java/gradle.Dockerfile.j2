@@ -1,25 +1,23 @@
-FROM {{ base_image | default("eclipse-temurin:21-jdk-alpine", true) }} AS builder
+# syntax=docker/dockerfile:1
+FROM {{ base_image | default("gradle:8-jdk21-alpine", true) }} AS builder
 
 WORKDIR /app
 
-COPY build.gradle* settings.gradle* gradlew ./
-COPY gradle ./gradle
-RUN chmod +x gradlew && \
-    ./gradlew dependencies --no-daemon
+COPY . .
+RUN gradle clean build -x test --no-daemon && \
+    JAR=$(find build/libs -maxdepth 1 -name '*.jar' \
+        ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name '*-tests.jar' ! -name '*-plain.jar' \
+        -print -quit) && \
+    cp "$JAR" build/libs/app.jar
 
-COPY src ./src
-RUN ./gradlew clean build -x test --no-daemon
-
-
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre-alpine AS runtime
 
 WORKDIR /app
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY --from=builder /app/build/libs/*.jar app.jar
+COPY --from=builder --chown=appuser:appgroup /app/build/libs/app.jar app.jar
 
-RUN chown appuser:appgroup app.jar
 USER appuser
 
 {% for env in env_vars %}

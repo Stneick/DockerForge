@@ -1,28 +1,50 @@
-FROM {{ base_image | default("python:3.12-slim", true) }}
+# syntax=docker/dockerfile:1
+FROM {{ base_image | default("python:3.12-slim", true) }} AS builder
 
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
+    apt-get install -y --no-install-recommends build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-COPY {{ dependency_file | default("requirements.txt", true) }} .
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+{% set dep_file = dependency_file | default("requirements.txt", true) %}
+COPY {{ dep_file }} ./
+{% if dep_file in ["pyproject.toml", "setup.py", "setup.cfg"] %}
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r {{ dependency_file | default("requirements.txt", true) }}
+    pip install --no-cache-dir . gunicorn
+{% else %}
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r {{ dep_file }} gunicorn
+{% endif %}
 
-COPY . .
+FROM {{ base_image | default("python:3.12-slim", true) }} AS runtime
 
-RUN python manage.py collectstatic --noinput
+WORKDIR /app
 
 RUN addgroup --system appgroup && \
-    adduser --system --ingroup appgroup appuser && \
-    chown -R appuser:appgroup /app
-USER appuser
+    adduser --system --ingroup appgroup --no-create-home appuser
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=appuser:appgroup . .
+
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PORT={{ port | default(8000, true) }}
 
 {% for env in env_vars %}
 ENV {{ env.key }}={{ env.value }}
 {% endfor %}
 
+USER appuser
+
 EXPOSE {{ port | default(8000, true) }}
 
-CMD ["gunicorn", "--bind", "0.0.0.0:{{ port | default(8000, true) }}", "--workers", "4", "{{ entry_point | default('myproject.wsgi:application', true) }}"]
+{% if startup_command %}
+CMD ["sh", "-c", "{{ startup_command }}"]
+{% else %}
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 2 {{ entry_point | default('myproject.wsgi:application', true) }}"]
+{% endif %}
