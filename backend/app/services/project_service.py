@@ -1,5 +1,8 @@
 import math
+from pathlib import Path
 
+from app.config import settings
+from app.core.utils import force_rmtree
 from app.models import Build
 from app.models.build import BuildStatusEnum
 from app.models.project import Project as ProjectModel
@@ -13,6 +16,7 @@ from app.schemas.project import (
     ProjectStats,
     UpdateProjectRequest,
 )
+from loguru import logger
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,9 +87,24 @@ async def update_project(
 
 
 async def delete_project(project: ProjectModel, db: AsyncSession) -> MessageResponse:
+    source_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project.id)
+
     await db.delete(project)
     await db.commit()
-    return MessageResponse(message="Project deleted")
+
+    source_cleaned = True
+    if source_dir.exists():
+        try:
+            force_rmtree(source_dir)
+        except Exception:
+            source_cleaned = False
+            logger.exception(f"Failed to delete source files at {source_dir}")
+
+    if source_cleaned:
+        return MessageResponse(message="Project deleted")
+    return MessageResponse(
+        message="Project deleted, but its source files could not be removed; check server logs"
+    )
 
 
 async def get_project_stats(project: ProjectModel, db: AsyncSession) -> ProjectStats:

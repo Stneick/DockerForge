@@ -1,7 +1,5 @@
 import asyncio
 import os
-import shutil
-import stat
 import subprocess
 import tarfile
 import zipfile
@@ -10,6 +8,7 @@ from pathlib import Path
 import aiofiles
 from app.config import settings
 from app.core.constants import ALLOWED_EXTENSIONS
+from app.core.utils import force_rmtree
 from app.models.project import LanguageEnum, SourceTypeEnum
 from app.models.project import Project as ProjectModel
 from app.schemas.project import (
@@ -20,24 +19,6 @@ from app.services.detector import detect_language
 from fastapi import HTTPException, UploadFile, status
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
-
-
-def _force_rmtree(path: Path) -> None:
-    """
-    shutil.rmtree substitute that handles PermissionError on read-only files
-    Git marks pack files inside .git/objects/ as read-only on Windows.
-    """
-
-    def _on_error(func, fpath, exc):
-        if isinstance(exc, PermissionError):
-            logger.debug(f"Clearing read-only flag on {fpath} and retrying deletion")
-            os.chmod(fpath, stat.S_IWRITE)
-            func(fpath)
-        else:
-            logger.error(f"Unexpected error while deleting {fpath}: {exc}")
-            raise exc
-
-    shutil.rmtree(path, onexc=_on_error)
 
 
 def _validate_archive(filename: str) -> str:
@@ -55,7 +36,7 @@ def _validate_archive(filename: str) -> str:
 async def _extract_archive(temp_path: Path, extract_dir: Path, archive_type: str):
     def _extract():
         if extract_dir.exists():
-            _force_rmtree(extract_dir)  # clean previous upload
+            force_rmtree(extract_dir)  # clean previous upload
         extract_dir.mkdir(parents=True, exist_ok=True)
         root = extract_dir.resolve()
 
@@ -168,7 +149,7 @@ async def _clone_repo(
     access_token: str | None = None,
 ):
     if clone_dir.exists():
-        _force_rmtree(clone_dir)
+        force_rmtree(clone_dir)
 
     args = ["git"]
     if access_token:

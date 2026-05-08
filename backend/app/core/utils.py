@@ -1,3 +1,29 @@
+import os
+import shutil
+import stat
+from pathlib import Path
+
+from loguru import logger
+
+
+def force_rmtree(path: Path) -> None:
+    """
+    shutil.rmtree substitute that handles PermissionError on read-only files.
+    Git marks pack files inside .git/objects/ as read-only on Windows.
+    """
+
+    def _on_error(func, fpath, exc):
+        if isinstance(exc, PermissionError):
+            logger.debug(f"Clearing read-only flag on {fpath} and retrying deletion")
+            os.chmod(fpath, stat.S_IWRITE)
+            func(fpath)
+        else:
+            logger.error(f"Unexpected error while deleting {fpath}: {exc}")
+            raise exc
+
+    shutil.rmtree(path, onexc=_on_error)
+
+
 def format_size(size_bytes: int) -> str:
     if size_bytes == 0:
         return "0 B"
