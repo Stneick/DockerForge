@@ -9,22 +9,7 @@ import { TabBar } from "./TabBar";
 import { StatusBar } from "./StatusBar";
 import { PanelsProvider, usePanels } from "./panels";
 
-/**
- * IDE workspace frame:
- *
- *   ┌───────────────────────────────────────────────┐
- *   │ TabBar (logo · open docs · layout · ⌘P ⌘K · me) │
- *   ├──────────┬───────────────────────────┬──────────┤
- *   │ Explorer │  editor region (Outlet)   │ Inspector│
- *   │          ├───────────────────────────┤          │
- *   │          │  Dock (logs/problems/…)    │          │
- *   ├──────────┴───────────────────────────┴──────────┤
- *   │ StatusBar                                        │
- *   └───────────────────────────────────────────────┘
- *
- * Explorer/Inspector/Dock are collapsible; routes fill Inspector + Dock via the
- * <Inspector> / <Dock> portals (see panels.tsx).
- */
+
 export function Shell() {
   return (
     <PanelsProvider>
@@ -35,19 +20,84 @@ export function Shell() {
 
 function ShellFrame() {
   const panels = usePanels();
-  const { explorerOpen, inspectorOpen, dockOpen, dockHeight, setDockHeight } = useLayout();
-  const dragRef = useRef<{ startY: number; startH: number } | null>(null);
+  const {
+    explorerOpen,
+    explorerWidth,
+    inspectorOpen,
+    inspectorWidth,
+    dockOpen,
+    dockHeight,
+    setDockHeight,
+    setExplorerWidth,
+    setInspectorWidth,
+  } = useLayout();
+  const dockDragRef = useRef<{ startY: number; startH: number } | null>(null);
+  const explorerDragRef = useRef<{ startX: number; startW: number } | null>(null);
+  const inspectorDragRef = useRef<{ startX: number; startW: number } | null>(null);
   useGlobalShortcuts();
 
-  const onResizeStart = useCallback(
+  const onExplorerResizeStart = useCallback(
     (e: React.MouseEvent) => {
-      dragRef.current = { startY: e.clientY, startH: dockHeight };
+      explorerDragRef.current = { startX: e.clientX, startW: explorerWidth };
       const onMove = (ev: MouseEvent) => {
-        if (!dragRef.current) return;
-        setDockHeight(dragRef.current.startH + (dragRef.current.startY - ev.clientY));
+        if (!explorerDragRef.current) return;
+        setExplorerWidth(
+          explorerDragRef.current.startW +
+            (ev.clientX - explorerDragRef.current.startX),
+        );
       };
       const onUp = () => {
-        dragRef.current = null;
+        explorerDragRef.current = null;
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+      };
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [explorerWidth, setExplorerWidth],
+  );
+
+  const onInspectorResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      inspectorDragRef.current = { startX: e.clientX, startW: inspectorWidth };
+      const onMove = (ev: MouseEvent) => {
+        if (!inspectorDragRef.current) return;
+        setInspectorWidth(
+          inspectorDragRef.current.startW +
+            (inspectorDragRef.current.startX - ev.clientX),
+        );
+      };
+      const onUp = () => {
+        inspectorDragRef.current = null;
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+      };
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [inspectorWidth, setInspectorWidth],
+  );
+
+  const onDockResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      dockDragRef.current = { startY: e.clientY, startH: dockHeight };
+      const onMove = (ev: MouseEvent) => {
+        if (!dockDragRef.current) return;
+        setDockHeight(
+          dockDragRef.current.startH +
+            (dockDragRef.current.startY - ev.clientY),
+        );
+      };
+      const onUp = () => {
+        dockDragRef.current = null;
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
         document.body.style.userSelect = "";
@@ -63,7 +113,18 @@ function ShellFrame() {
     <div className="flex h-screen flex-col overflow-hidden bg-bg">
       <TabBar />
       <div className="flex min-h-0 flex-1">
-        {explorerOpen && <Explorer />}
+        {explorerOpen && (
+          <div className="flex shrink-0">
+            <Explorer />
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize explorer"
+              onMouseDown={onExplorerResizeStart}
+              className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-cyan-dim"
+            />
+          </div>
+        )}
 
         {/* center column: editor region + dock */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -81,7 +142,7 @@ function ShellFrame() {
           >
             {panels.hasDock && dockOpen && (
               <div
-                onMouseDown={onResizeStart}
+                onMouseDown={onDockResizeStart}
                 className="h-1 shrink-0 cursor-row-resize bg-transparent transition-colors hover:bg-cyan-dim"
               />
             )}
@@ -90,14 +151,26 @@ function ShellFrame() {
         </div>
 
         {/* inspector — host stays mounted; hidden when closed/empty */}
-        <aside
+        <div
           className={cn(
-            "w-[280px] shrink-0 overflow-y-auto border-l border-line bg-chrome",
+            "flex shrink-0",
             (!panels.hasInspector || !inspectorOpen) && "hidden",
           )}
         >
-          <div ref={panels.setInspectorEl} />
-        </aside>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize inspector"
+            onMouseDown={onInspectorResizeStart}
+            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-cyan-dim"
+          />
+          <aside
+            className="shrink-0 overflow-y-auto border-l border-line bg-chrome"
+            style={{ width: inspectorWidth }}
+          >
+            <div ref={panels.setInspectorEl} />
+          </aside>
+        </div>
       </div>
       <StatusBar />
     </div>
