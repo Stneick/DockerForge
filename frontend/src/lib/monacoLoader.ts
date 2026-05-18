@@ -6,6 +6,9 @@ import { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
 // Dockerfile tokenization/coloring (basic-languages contribution). plaintext is built in.
 import "monaco-editor/esm/vs/basic-languages/dockerfile/dockerfile.contribution";
+// Diff editor UI (gutter indicators, inline deleted blocks, view-zone styling).
+import "monaco-editor/esm/vs/editor/browser/widget/diffEditor/diffEditor.contribution.js";
+import "monaco-editor/esm/vs/editor/browser/widget/diffEditor/style.css";
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 
 (globalThis as unknown as { MonacoEnvironment: { getWorker: () => Worker } }).MonacoEnvironment = {

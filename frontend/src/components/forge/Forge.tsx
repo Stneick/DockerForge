@@ -22,6 +22,7 @@ import { CenteredSpinner } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { Dock, Inspector, InspectorSection } from "@/components/workbench/panels";
 import { CodeEditor, CodeDiff } from "./MonacoView";
+import { EditorToolbar, FileTab, SegBtn } from "./EditorChrome";
 import { LintPanel, lintSummary } from "./LintPanel";
 import { BuildConfigDialog } from "./BuildConfigDialog";
 import type { LintIssue, Project } from "@/types/api";
@@ -143,34 +144,58 @@ function ForgeInner({ project, initialFile }: { project: Project; initialFile: F
 
   return (
     <div className="flex h-full flex-col">
-      {/* editor toolbar */}
-      <div className="flex items-center gap-2 border-b border-line bg-bg2 px-2 py-1.5">
-        <div className="flex overflow-hidden rounded-md border border-line2">
-          <FileTab active={isDockerfile} onClick={() => setActiveFile("dockerfile")} icon={<FileCode2 className="h-3.5 w-3.5" />} edited={dockerfile !== baseDockerfile}>
-            Dockerfile
-          </FileTab>
-          <FileTab active={!isDockerfile} onClick={() => setActiveFile("dockerignore")} icon={<FileX2 className="h-3.5 w-3.5" />} edited={dockerignore !== baseDockerignore}>
-            .dockerignore
-          </FileTab>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
+      <EditorToolbar
+        tabs={
           <div className="flex overflow-hidden rounded-md border border-line2">
-            <SegBtn active={mode === "edit"} onClick={() => setMode("edit")}>Edit</SegBtn>
-            <SegBtn active={mode === "diff"} onClick={() => setMode("diff")} disabled={!edited} title={edited ? undefined : "No changes to diff"}>
-              <GitCompareArrows className="mr-1 h-3.5 w-3.5" /> Diff
-            </SegBtn>
+            <FileTab
+              active={isDockerfile}
+              onClick={() => setActiveFile("dockerfile")}
+              icon={<FileCode2 className="h-3.5 w-3.5" />}
+              edited={dockerfile !== baseDockerfile}
+            >
+              Dockerfile
+            </FileTab>
+            <FileTab
+              active={!isDockerfile}
+              onClick={() => setActiveFile("dockerignore")}
+              icon={<FileX2 className="h-3.5 w-3.5" />}
+              edited={dockerignore !== baseDockerignore}
+            >
+              .dockerignore
+            </FileTab>
           </div>
-          {mode === "diff" && (
+        }
+        right={
+          <>
             <div className="flex overflow-hidden rounded-md border border-line2">
-              <SegBtn active={sideBySide} onClick={() => setSideBySide(true)}>Split</SegBtn>
-              <SegBtn active={!sideBySide} onClick={() => setSideBySide(false)}>Inline</SegBtn>
+              <SegBtn active={mode === "edit"} onClick={() => setMode("edit")}>
+                Edit
+              </SegBtn>
+              <SegBtn
+                active={mode === "diff"}
+                onClick={() => setMode("diff")}
+                disabled={!edited}
+                title={edited ? undefined : "No changes to diff"}
+              >
+                <GitCompareArrows className="mr-1 h-3.5 w-3.5" /> Diff
+              </SegBtn>
             </div>
-          )}
-          <Button variant="ghost" size="sm" onClick={regenerate} title="Regenerate from config">
-            <RefreshCw className="h-3.5 w-3.5" /> Regenerate
-          </Button>
-        </div>
-      </div>
+            {mode === "diff" && (
+              <div className="flex overflow-hidden rounded-md border border-line2">
+                <SegBtn active={sideBySide} onClick={() => setSideBySide(true)}>
+                  Split
+                </SegBtn>
+                <SegBtn active={!sideBySide} onClick={() => setSideBySide(false)}>
+                  Inline
+                </SegBtn>
+              </div>
+            )}
+            <Button variant="ghost" size="sm" onClick={regenerate} title="Regenerate from config">
+              <RefreshCw className="h-3.5 w-3.5" /> Regenerate
+            </Button>
+          </>
+        }
+      />
 
       {/* editor */}
       <div className="min-h-0 flex-1">
@@ -191,6 +216,7 @@ function ForgeInner({ project, initialFile }: { project: Project; initialFile: F
             modifiedEditable
             issues={isDockerfile ? issues : undefined}
             onChange={setValue}
+            onKeepAll={() => setMode("edit")}
           />
         )}
       </div>
@@ -296,23 +322,5 @@ function Field({ k, v }: { k: string; v: string }) {
       <dt className="w-9 shrink-0 text-dim">{k}</dt>
       <dd className="min-w-0 flex-1 truncate text-muted">{v}</dd>
     </div>
-  );
-}
-
-function FileTab({ active, onClick, icon, edited, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; edited?: boolean; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} className={cn("flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs transition-colors", active ? "bg-bg text-text" : "text-muted hover:bg-surface2")}>
-      <span className={active ? "text-cyan" : "text-dim"}>{icon}</span>
-      {children}
-      {edited && <span className="h-1.5 w-1.5 rounded-full bg-cyan" />}
-    </button>
-  );
-}
-
-function SegBtn({ active, onClick, disabled, title, children }: { active: boolean; onClick: () => void; disabled?: boolean; title?: string; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} disabled={disabled} title={title} className={cn("flex items-center px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40", active ? "bg-cyan text-onaccent" : "text-muted hover:bg-surface2")}>
-      {children}
-    </button>
   );
 }
