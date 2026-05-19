@@ -21,7 +21,7 @@ export function DashboardPage() {
 
   return (
     <div className="relative h-full overflow-y-auto">
-      <div className="grid-tex pointer-events-none absolute inset-0 opacity-30 [mask-image:radial-gradient(circle_at_70%_0%,black,transparent_70%)]" />
+      <div className="grid-tex-prominent pointer-events-none absolute inset-0 opacity-55 [mask-image:radial-gradient(ellipse_100%_90%_at_50%_0%,black,transparent_78%)]" />
       <div className="relative mx-auto max-w-6xl px-8 py-8">
         <div className="flex items-end justify-between gap-4">
           <div>

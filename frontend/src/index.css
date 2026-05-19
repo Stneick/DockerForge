@@ -45,7 +45,15 @@ body,
 }
 
 /* ---- auth backdrop (Dockerfile rain) ---- */
-@keyframes df-rise { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+/* --cycle-h is set inline (px height of one repeated block). */
+@keyframes df-rise-px {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, calc(var(--cycle-h) * -1), 0);
+  }
+}
 @keyframes auth-fade-up {
   from {
     opacity: 0;
@@ -73,6 +81,14 @@ body {
       linear-gradient(rgb(var(--line) / 0.55) 1px, transparent 1px),
       linear-gradient(90deg, rgb(var(--line) / 0.55) 1px, transparent 1px);
     background-size: 46px 46px;
+  }
+
+  /* Stronger grid for dashboard / hero surfaces */
+  .grid-tex-prominent {
+    background-image:
+      linear-gradient(rgb(var(--line2) / 0.7) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--line2) / 0.7) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
 
   /* Surface panel — the workbench's building block. */
@@ -145,6 +161,55 @@ body {
 *::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--cyan-dim));
   background-clip: content-box;
+}
+
+/* Diff review: horizontal bar above each hunk (VS Code code-lens style) */
+.df-diff-hunk-bar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  background: rgb(var(--surface));
+  border-bottom: 1px solid rgb(var(--line2));
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 22px;
+  pointer-events: auto;
+  cursor: default;
+}
+
+.df-diff-hunk-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: auto;
+}
+
+.df-diff-hunk-sep {
+  margin: 0 6px;
+  color: rgb(var(--dim));
+  user-select: none;
+}
+
+.df-diff-hunk-action {
+  padding: 0;
+  font: inherit;
+  color: rgb(var(--muted));
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.12s;
+}
+
+.df-diff-hunk-action:hover {
+  color: rgb(var(--text));
+  text-decoration: underline;
+}
+
+.df-diff-hunk-action--accept:hover {
+  color: rgb(var(--cyan));
 }
 
 /* Respect reduced-motion preferences. */

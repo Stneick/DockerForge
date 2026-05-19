@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef, useState } from "react";
+
 import { cn } from "@/lib/cn";
 
 export function Backdrop() {
@@ -30,23 +32,65 @@ const DF_LINES = [
   "--- Build finished with status: SUCCESS ---",
 ];
 
-function RainColumn({ offset, duration }: { offset: number; duration: number }) {
-  const lines = [...DF_LINES.slice(offset), ...DF_LINES, ...DF_LINES];
+/** Extra repeats so the column stays filled while one cycle scrolls through. */
+const LOOP_COPIES = 3;
+
+function lineClass(line: string) {
+  return cn(
+    /^Step|^---|Successfully/.test(line)
+      ? "text-cyan/25"
+      : line.startsWith(" --->")
+        ? "text-dim/20"
+        : "text-muted/15",
+  );
+}
+
+function LineBlock({ lines, blockKey }: { lines: string[]; blockKey: string }) {
   return (
-    <div
-      className="flex-1 whitespace-pre font-mono text-xs leading-7 will-change-transform"
-      style={{ animation: `df-rise ${duration}s linear infinite` }}
-    >
+    <>
       {lines.map((l, i) => (
-        <div
-          key={i}
-          className={cn(
-            /^Step|^---|Successfully/.test(l) ? "text-cyan/25" : l.startsWith(" --->") ? "text-dim/20" : "text-muted/15",
-          )}
-        >
+        <div key={`${blockKey}-${i}`} className={lineClass(l)}>
           {l}
         </div>
       ))}
+    </>
+  );
+}
+
+function RainColumn({ offset, duration }: { offset: number; duration: number }) {
+  const cycleRef = useRef<HTMLDivElement>(null);
+  const [cycleH, setCycleH] = useState(0);
+  const cycle = [...DF_LINES.slice(offset), ...DF_LINES];
+
+  useLayoutEffect(() => {
+    const el = cycleRef.current;
+    if (!el) return;
+    const measure = () => setCycleH(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [offset]);
+
+  return (
+    <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div
+        className="flex w-full flex-col whitespace-pre font-mono text-xs leading-7 will-change-transform"
+        style={
+          cycleH > 0
+            ? {
+                ["--cycle-h" as string]: `${cycleH}px`,
+                animation: `df-rise-px ${duration}s linear infinite`,
+              }
+            : undefined
+        }
+      >
+        {Array.from({ length: LOOP_COPIES }, (_, i) => (
+          <div key={i} ref={i === 0 ? cycleRef : undefined} className="flex flex-col">
+            <LineBlock lines={cycle} blockKey={String(i)} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
