@@ -9,9 +9,5 @@ export function DockerfileView({ content }: { content: string | null }) {
       <EmptyState icon={<FileCode2 className="h-6 w-6" />} title="No Dockerfile recorded" />
     );
   }
-  return (
-    <div className="h-full overflow-hidden rounded-xl border border-line">
-      <CodeEditor value={content} language="dockerfile" readOnly />
-    </div>
-  );
+  return <CodeEditor value={content} language="dockerfile" readOnly />;
 }
