@@ -1,19 +1,26 @@
 # syntax=docker/dockerfile:1
+
+# --- Build stage: compile the project with the full GCC toolchain. ---
+# The compilers live here and are left behind, keeping the final image small.
 FROM {{ base_image | default("gcc:13-bookworm", true) }} AS builder
 
 WORKDIR /src
 
+# CMake drives the build; the gcc image already provides the compilers.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cmake && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
+# Configure a release build, then compile using all available cores.
 RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && \
     cmake --build build --parallel "$(nproc)"
 
+# --- Runtime stage: minimal image with just the binary and its runtime libs. ---
 FROM debian:bookworm-slim AS runtime
 
+# Install runtime libraries and create a non-root user to run the app as.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates libstdc++6 && \
     rm -rf /var/lib/apt/lists/* && \
@@ -30,8 +37,10 @@ USER appuser
 ENV {{ env.key }}={{ env.value }}
 {% endfor %}
 
+# Document the port the application listens on.
 {% if port %}
 EXPOSE {{ port }}
 {% endif %}
 
+# Start the application.
 CMD ["./{{ binary_name | default('app', true) }}"]

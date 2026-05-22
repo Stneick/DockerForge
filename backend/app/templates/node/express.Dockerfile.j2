@@ -1,12 +1,17 @@
 # syntax=docker/dockerfile:1
-FROM {{ base_image | default("node:20-slim", true) }} AS deps
+
+# --- Dependency stage: install production node_modules in isolation. ---
+FROM {{ base_image | default("node:20-alpine", true) }} AS deps
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev || npm install --omit=dev
+# Leverage a cache mount to /root/.npm to speed up subsequent builds.
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev || npm install --omit=dev
 
-FROM {{ base_image | default("node:20-slim", true) }} AS runtime
+# --- Runtime stage: copy the app and installed modules into the final image. ---
+FROM {{ base_image | default("node:20-alpine", true) }} AS runtime
 
 WORKDIR /app
 
@@ -20,8 +25,11 @@ ENV {{ env.key }}={{ env.value }}
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node . .
 
+# The official node image ships a built-in non-root 'node' user; run as it.
 USER node
 
+# Document the port the application listens on.
 EXPOSE {{ port | default(3000, true) }}
 
+# Start the application.
 CMD ["sh", "-c", "{{ startup_command | default('node index.js', true) }}"]

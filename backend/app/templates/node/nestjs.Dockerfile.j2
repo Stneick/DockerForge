@@ -1,22 +1,30 @@
 # syntax=docker/dockerfile:1
-FROM {{ base_image | default("node:20-slim", true) }} AS deps
+
+# --- Dependency stage: install production-only node_modules. ---
+FROM {{ base_image | default("node:20-alpine", true) }} AS deps
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev || npm install --omit=dev
+# Leverage a cache mount to /root/.npm to speed up subsequent builds.
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev || npm install --omit=dev
 
-FROM {{ base_image | default("node:20-slim", true) }} AS builder
+# --- Build stage: install all deps and compile the app (e.g. `npm run build`). ---
+FROM {{ base_image | default("node:20-alpine", true) }} AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci || npm install
+# Leverage a cache mount to /root/.npm to speed up subsequent builds.
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci || npm install
 
 COPY . .
 RUN npm run build
 
-FROM {{ base_image | default("node:20-slim", true) }} AS runtime
+# --- Runtime stage: ship only prod modules + compiled output (dist). ---
+FROM {{ base_image | default("node:20-alpine", true) }} AS runtime
 
 WORKDIR /app
 
@@ -31,8 +39,11 @@ COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --chown=node:node package.json ./
 
+# The official node image ships a built-in non-root 'node' user; run as it.
 USER node
 
+# Document the port the application listens on.
 EXPOSE {{ port | default(3000, true) }}
 
+# Start the application.
 CMD ["node", "{{ entry_point | default('dist/main', true) }}"]

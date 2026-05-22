@@ -1,17 +1,30 @@
 # syntax=docker/dockerfile:1
+
+# --- Build stage: compile the release binary. ---
 FROM {{ base_image | default("rust:1.77-slim-bookworm", true) }} AS builder
 
 WORKDIR /app
 
+# Native build dependencies for crates that link against OpenSSL.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends pkg-config libssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .
-RUN cargo build --release
+# Build with cache mounts for the cargo registry, git db, and target dir to
+# speed up subsequent builds. The compiled binary must be copied out of the
+# cache-mounted target dir within this RUN, otherwise it won't exist in the
+# resulting layer for the runtime stage to copy.
+RUN --mount=type=cache,target=/usr/local/cargo/registry/ \
+    --mount=type=cache,target=/usr/local/cargo/git/db \
+    --mount=type=cache,target=/app/target/ \
+    cargo build --release --locked && \
+    cp ./target/release/{{ binary_name | default("app", true) }} /bin/{{ binary_name | default("app", true) }}
 
+# --- Runtime stage: minimal image with just the binary and its runtime libs. ---
 FROM debian:bookworm-slim AS runtime
 
+# Install runtime libraries and create a non-root user to run the app as.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates libssl3 && \
     rm -rf /var/lib/apt/lists/* && \
@@ -19,7 +32,7 @@ RUN apt-get update && \
     adduser --system --ingroup appgroup --no-create-home appuser
 
 WORKDIR /app
-COPY --from=builder --chown=appuser:appgroup /app/target/release/{{ binary_name | default("app", true) }} .
+COPY --from=builder --chown=appuser:appgroup /bin/{{ binary_name | default("app", true) }} .
 
 USER appuser
 
@@ -27,8 +40,10 @@ USER appuser
 ENV {{ env.key }}={{ env.value }}
 {% endfor %}
 
+# Document the port the application listens on.
 {% if port %}
 EXPOSE {{ port }}
 {% endif %}
 
+# Start the application.
 CMD ["./{{ binary_name | default('app', true) }}"]

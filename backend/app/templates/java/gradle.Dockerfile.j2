@@ -1,19 +1,26 @@
 # syntax=docker/dockerfile:1
+
+# --- Build stage: compile and package the app into a single jar. ---
 FROM {{ base_image | default("gradle:8-jdk21-alpine", true) }} AS builder
 
 WORKDIR /app
 
 COPY . .
-RUN gradle clean build -x test --no-daemon && \
+# Leverage a cache mount to /root/.gradle so subsequent builds reuse dependencies.
+# Build the jar, then copy it to a predictable name (app.jar) for the next stage.
+RUN --mount=type=cache,target=/root/.gradle \
+    gradle clean build -x test --no-daemon && \
     JAR=$(find build/libs -maxdepth 1 -name '*.jar' \
         ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name '*-tests.jar' ! -name '*-plain.jar' \
         -print -quit) && \
     cp "$JAR" build/libs/app.jar
 
+# --- Runtime stage: JRE-only image (no Gradle/JDK) for a smaller result. ---
 FROM eclipse-temurin:21-jre-alpine AS runtime
 
 WORKDIR /app
 
+# Run as a non-root user instead of root for better security.
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 COPY --from=builder --chown=appuser:appgroup /app/build/libs/app.jar app.jar
@@ -24,8 +31,11 @@ USER appuser
 ENV {{ env.key }}={{ env.value }}
 {% endfor %}
 
+# Let the JVM size its heap based on the container's memory limit.
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 
+# Document the port the application listens on.
 EXPOSE {{ port | default(8080, true) }}
 
+# Start the application.
 CMD ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

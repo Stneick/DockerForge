@@ -1,20 +1,36 @@
 # syntax=docker/dockerfile:1
-FROM {{ base_image | default("golang:1.22-alpine", true) }} AS builder
+
+# --- Build stage: compile a small, static binary. ---
+# --platform=$BUILDPLATFORM builds on the native arch while cross-compiling below.
+FROM --platform=$BUILDPLATFORM {{ base_image | default("golang:1.22-alpine", true) }} AS builder
 
 WORKDIR /src
 
 RUN apk add --no-cache git ca-certificates tzdata
 
+# Download dependencies first, leveraging a cache mount for the Go module cache
+# and a bind mount for go.mod so this layer is reused when only source changes.
+RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=bind,source=go.mod,target=go.mod \
+    go mod download
+
+# TARGETARCH is provided automatically by the builder for multi-platform builds.
+ARG TARGETARCH
+
 COPY . .
 
-RUN go mod download && \
-    CGO_ENABLED=0 GOOS=linux go build \
+# Build with cache mounts for the module cache and the Go build cache.
+RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build \
     -ldflags="-s -w" \
     -trimpath \
     -o /out/{{ binary_name | default("server", true) }} {{ build_package | default(".", true) }}
 
+# --- Runtime stage: a tiny image with just the binary and CA certs. ---
 FROM alpine:3.19 AS runtime
 
+# Add CA certs/timezones and a non-root user to run the app as.
 RUN apk add --no-cache ca-certificates tzdata && \
     addgroup -S appgroup && adduser -S appuser -G appgroup
 
@@ -27,8 +43,10 @@ ENV {{ env.key }}={{ env.value }}
 
 USER appuser
 
+# Document the port the application listens on.
 {% if port %}
 EXPOSE {{ port }}
 {% endif %}
 
+# Start the application.
 CMD ["./{{ binary_name | default('server', true) }}"]
