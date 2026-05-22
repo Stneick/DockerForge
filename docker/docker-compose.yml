@@ -71,6 +71,18 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Frontend
+  dockerforge-frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    container_name: dockerforge-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - dockerforge-api
+
   worker:
     build:
       context: ../backend
