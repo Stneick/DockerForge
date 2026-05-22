@@ -176,11 +176,19 @@ class ProjectStats(BaseModel):
     successful_builds: int
     failed_builds: int
     cancelled_builds: int
+    pending_builds: int
+    building_builds: int
     success_rate: float  # 0.0–1.0
     avg_duration_seconds: float | None
     fastest_build_seconds: float | None
     slowest_build_seconds: float | None
     avg_image_size_bytes: int | None
+    min_image_size_bytes: int | None
+    max_image_size_bytes: int | None
+    total_active_image_size_bytes: int | None
+    cleaned_builds_count: int
     last_build_at: datetime | None
+    last_successful_build_at: datetime | None
+    last_successful_image_tag: str | None
     cached_builds: CacheStat
     no_cache_builds: CacheStat
