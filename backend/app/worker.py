@@ -22,7 +22,6 @@ from app.models.build import BuildStatusEnum
 from app.models.project import Project as ProjectModel
 from app.models.settings import AppSettings as AppSettingsModel
 from app.schemas.build import LogEntry, StreamEvent, TriggerBuildRequest
-from app.schemas.settings import AppSettings as AppSettingsSchema
 from app.services.docker_client import (
     BuildCancelled,
     build_image,
@@ -61,7 +60,7 @@ async def run_build_task(ctx: dict, build_id: UUID, request_data: dict) -> str:
         if app_settings_orm is None:
             logger.error(f"App settings not found in database for build {build_id}")
             return "App settings not found"
-        app_settings = AppSettingsSchema.model_validate(app_settings_orm)
+        app_settings = app_settings_orm
 
         try:
             if await redis.exists(f"build:{build_id}:cancel"):

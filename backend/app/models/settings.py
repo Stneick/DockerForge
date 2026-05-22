@@ -1,9 +1,13 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from docker.api.build import _ContainerLimits
 
 
 class AppSettings(Base):
@@ -53,3 +57,12 @@ class AppSettings(Base):
     )
 
     __table_args__ = (CheckConstraint("id = 1", name="singleton_row"),)
+
+    def _parse_memory(self, mem_str: str) -> int:
+        units = {"k": 1024, "m": 1024**2, "g": 1024**3}
+        return int(mem_str[:-1]) * units[mem_str[-1].lower()]
+
+    @property
+    def container_limits(self) -> "_ContainerLimits":
+        mem = self._parse_memory(self.build_memory_limit)
+        return {"memory": mem, "memswap": mem}

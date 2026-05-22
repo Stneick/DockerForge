@@ -1,11 +1,7 @@
 import re
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-if TYPE_CHECKING:
-    from docker.api.build import _ContainerLimits
 
 
 class AppSettings(BaseModel):
@@ -21,18 +17,9 @@ class AppSettings(BaseModel):
     build_log_stream_max_entries: int
     hadolint_timeout_seconds: int
     updated_at: datetime
-
-    def parse_memory(self, mem_str: str) -> int:
-        units = {"k": 1024, "m": 1024**2, "g": 1024**3}
-        return int(mem_str[:-1]) * units[mem_str[-1].lower()]
-
-    @property
-    def container_limits(self) -> "_ContainerLimits":
-        mem = self.parse_memory(self.build_memory_limit)
-        return {
-            "memory": mem,
-            "memswap": mem,
-        }
+    build_max_concurrent: int
+    arq_job_timeout_seconds: int
+    project_source_dir: str
 
 
 class UpdateAppSettingsRequest(BaseModel):
