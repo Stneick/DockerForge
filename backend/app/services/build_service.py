@@ -3,7 +3,10 @@ import json
 import math
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
+from pathlib import Path
 from uuid import UUID
+
+from app.config import settings
 
 import redis.asyncio as redis_async
 from app.core.utils import format_size_diff
@@ -29,6 +32,15 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+def _ensure_source_present(project: ProjectModel) -> None:
+    source_dir = Path(settings.PROJECTS_SOURCE_DIR) / str(project.id) / "source"
+    if not source_dir.exists() or not any(source_dir.iterdir()):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Project has no source. Upload or clone source before building",
+        )
 
 
 async def _save_and_enqueue_build(
@@ -67,6 +79,8 @@ async def trigger_build(
     db: AsyncSession,
     request: Request,
 ) -> BuildModel:
+    _ensure_source_present(project)
+
     if data.custom_dockerfile:
         dockerfile_content = data.custom_dockerfile
     else:
@@ -136,6 +150,8 @@ async def retry_build(
             status_code=status.HTTP_409_CONFLICT,
             detail="Build is currently running. Cancel it before retrying.",
         )
+
+    _ensure_source_present(project)
 
     new_build = BuildModel(
         project_id=project.id,
