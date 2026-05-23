@@ -9,8 +9,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-dockerforge}
       POSTGRES_USER: ${POSTGRES_USER:-dockerforge}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dockerforge}
-    ports:
-      - 5432:5432
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -25,8 +23,6 @@ services:
     container_name: dockerforge-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
