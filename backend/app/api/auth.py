@@ -27,7 +27,7 @@ def _set_auth_cookies(
         httponly=True,
         path="/",
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite=settings.COOKIE_SAMESITE,
         max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
     response.set_cookie(
@@ -36,7 +36,7 @@ def _set_auth_cookies(
         httponly=True,
         path="/api/v1/auth",
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite=settings.COOKIE_SAMESITE,
         max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
     )
 
@@ -89,13 +89,13 @@ async def logout(
         )
     # path, secure, and samesite must match the original Set-Cookie exactly,
     response.delete_cookie(
-        "access_token", path="/", secure=settings.COOKIE_SECURE, samesite="lax"
+        "access_token", path="/", secure=settings.COOKIE_SECURE, samesite=settings.COOKIE_SAMESITE
     )
     response.delete_cookie(
         "refresh_token",
         path="/api/v1/auth",
         secure=settings.COOKIE_SECURE,
-        samesite="lax",
+        samesite=settings.COOKIE_SAMESITE,
     )
     await logout_user(refresh_token, db)
     return MessageResponse(message="Successfully logged out")

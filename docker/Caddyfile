@@ -1,0 +1,3 @@
+{$DOMAIN} {
+	reverse_proxy dockerforge-frontend:80
+}

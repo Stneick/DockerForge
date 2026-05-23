@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     WORKERS: int = 4
     LOG_LEVEL: str = "info"
     ENVIRONMENT: Literal["dev", "prod"] = "dev"
-    COOKIE_SECURE: bool = False
 
     # Database
     DB_USER: str
@@ -47,6 +46,18 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", case_sensitive=True, extra="ignore"
     )
+
+    @property
+    def COOKIE_SECURE(self) -> bool:
+        # Secure cookies (HTTPS-only) in prod; relaxed in dev so local
+        # HTTP login works.
+        return self.ENVIRONMENT == "prod"
+
+    @property
+    def COOKIE_SAMESITE(self) -> Literal["lax", "strict"]:
+        # Strict in prod (frontend + API share one origin, so same-site
+        # XHR still carries the cookie); lax in dev for convenience.
+        return "strict" if self.ENVIRONMENT == "prod" else "lax"
 
     @property
     def DATABASE_URL(self) -> str:

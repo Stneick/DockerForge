@@ -54,8 +54,6 @@ services:
     env_file:
       - ../backend/.env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    ports:
-      - "7000:8000"
     volumes:
       - project_data:/app/data/projects
       - /var/run/docker.sock:/var/run/docker.sock
@@ -74,10 +72,25 @@ services:
       dockerfile: ../docker/Dockerfile.frontend
     container_name: dockerforge-frontend
     restart: unless-stopped
-    ports:
-      - "3000:80"
     depends_on:
       - dockerforge-api
+
+  # Reverse proxy + automatic HTTPS (Let's Encrypt)
+  caddy:
+    image: caddy:2
+    container_name: dockerforge-caddy
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - dockerforge-frontend
 
   worker:
     build:
@@ -103,3 +116,5 @@ volumes:
   pgdata:
   redisdata:
   project_data:
+  caddy_data:
+  caddy_config:
