@@ -9,7 +9,7 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/languages", tags=["Languages"])
 
 
-@router.get("/", response_model=LanguageListResponse)
+@router.get("", response_model=LanguageListResponse)
 async def list_languages():
     languages = []
     for lang_key, config in LANGUAGES.items():

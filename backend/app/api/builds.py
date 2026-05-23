@@ -42,7 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(prefix="/projects/{project_id}/builds", tags=["Builds"])
 
 
-@router.post("/", response_model=BuildSchema, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=BuildSchema, status_code=status.HTTP_201_CREATED)
 async def trigger(
     data: TriggerBuildRequest,
     request: Request,
@@ -52,7 +52,7 @@ async def trigger(
     return await trigger_build(project, data, db, request)
 
 
-@router.get("/", response_model=BuildListResponse)
+@router.get("", response_model=BuildListResponse)
 async def list_all(
     project: ProjectModel = Depends(get_project),
     db: AsyncSession = Depends(get_db),

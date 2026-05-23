@@ -78,6 +78,7 @@ app = FastAPI(
     version="0.8",
     description=_APP_DESCRIPTION,
     debug=_dev,
+    redirect_slashes=False,
     docs_url="/docs" if _dev else None,
     redoc_url="/redoc" if _dev else None,
     lifespan=lifespan,

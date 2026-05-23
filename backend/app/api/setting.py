@@ -19,7 +19,7 @@ def _build_response(db_settings: AppSettingsModel) -> AppSettings:
     })
 
 
-@router.get("/", response_model=AppSettings)
+@router.get("", response_model=AppSettings)
 async def get_settings(
     settings: AppSettingsModel = Depends(get_app_settings),
     _: User = Depends(get_current_user),
@@ -27,7 +27,7 @@ async def get_settings(
     return _build_response(settings)
 
 
-@router.patch("/", response_model=AppSettings)
+@router.patch("", response_model=AppSettings)
 async def update_settings(
     data: UpdateAppSettingsRequest,
     db: AsyncSession = Depends(get_db),

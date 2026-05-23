@@ -43,7 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
-@router.post("/", response_model=Project, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Project, status_code=status.HTTP_201_CREATED)
 async def create(
     data: CreateProjectRequest,
     current_user: User = Depends(get_current_user),
@@ -52,7 +52,7 @@ async def create(
     return await create_project(data, current_user, db)
 
 
-@router.get("/", response_model=ProjectListResponse)
+@router.get("", response_model=ProjectListResponse)
 async def list_all(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
