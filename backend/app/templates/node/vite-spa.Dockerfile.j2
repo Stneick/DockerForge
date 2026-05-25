@@ -1,14 +1,11 @@
-# syntax=docker/dockerfile:1
-
 # --- Build stage: install deps and produce the static bundle. ---
-FROM {{ base_image | default("node:20-alpine", true) }} AS builder
+FROM {{ base_image | default("node:20-slim", true) }} AS builder
 
 WORKDIR /app
 
+# Copy manifests first so the install layer is cached unless dependencies change.
 COPY package*.json ./
-# Leverage a cache mount to /root/.npm to speed up subsequent builds.
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci || npm install
+RUN npm ci || npm install
 
 COPY . .
 

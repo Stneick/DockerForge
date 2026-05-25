@@ -1,30 +1,24 @@
-# syntax=docker/dockerfile:1
-
 # --- Dependency stage: install production-only node_modules. ---
-FROM {{ base_image | default("node:20-alpine", true) }} AS deps
+FROM {{ base_image | default("node:20-slim", true) }} AS deps
 
 WORKDIR /app
 
 COPY package*.json ./
-# Leverage a cache mount to /root/.npm to speed up subsequent builds.
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev || npm install --omit=dev
+RUN npm ci --omit=dev || npm install --omit=dev
 
 # --- Build stage: install all deps and compile the app (e.g. `npm run build`). ---
-FROM {{ base_image | default("node:20-alpine", true) }} AS builder
+FROM {{ base_image | default("node:20-slim", true) }} AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-# Leverage a cache mount to /root/.npm to speed up subsequent builds.
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci || npm install
+RUN npm ci || npm install
 
 COPY . .
 RUN npm run build
 
 # --- Runtime stage: ship only prod modules + compiled output (dist). ---
-FROM {{ base_image | default("node:20-alpine", true) }} AS runtime
+FROM {{ base_image | default("node:20-slim", true) }} AS runtime
 
 WORKDIR /app
 

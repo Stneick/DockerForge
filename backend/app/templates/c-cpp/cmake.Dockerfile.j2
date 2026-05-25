@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # --- Build stage: compile the project with the full GCC toolchain. ---
 # The compilers live here and are left behind, keeping the final image small.
 FROM {{ base_image | default("gcc:13-bookworm", true) }} AS builder

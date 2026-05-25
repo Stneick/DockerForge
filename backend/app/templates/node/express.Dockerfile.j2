@@ -1,17 +1,14 @@
-# syntax=docker/dockerfile:1
-
 # --- Dependency stage: install production node_modules in isolation. ---
-FROM {{ base_image | default("node:20-alpine", true) }} AS deps
+FROM {{ base_image | default("node:20-slim", true) }} AS deps
 
 WORKDIR /app
 
+# Copy manifests first so this layer is cached unless dependencies change.
 COPY package*.json ./
-# Leverage a cache mount to /root/.npm to speed up subsequent builds.
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev || npm install --omit=dev
+RUN npm ci --omit=dev || npm install --omit=dev
 
 # --- Runtime stage: copy the app and installed modules into the final image. ---
-FROM {{ base_image | default("node:20-alpine", true) }} AS runtime
+FROM {{ base_image | default("node:20-slim", true) }} AS runtime
 
 WORKDIR /app
 

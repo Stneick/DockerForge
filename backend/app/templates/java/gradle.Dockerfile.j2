@@ -1,15 +1,11 @@
-# syntax=docker/dockerfile:1
-
 # --- Build stage: compile and package the app into a single jar. ---
 FROM {{ base_image | default("gradle:8-jdk21-alpine", true) }} AS builder
 
 WORKDIR /app
 
 COPY . .
-# Leverage a cache mount to /root/.gradle so subsequent builds reuse dependencies.
 # Build the jar, then copy it to a predictable name (app.jar) for the next stage.
-RUN --mount=type=cache,target=/root/.gradle \
-    gradle clean build -x test --no-daemon && \
+RUN gradle clean build -x test --no-daemon && \
     JAR=$(find build/libs -maxdepth 1 -name '*.jar' \
         ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name '*-tests.jar' ! -name '*-plain.jar' \
         -print -quit) && \

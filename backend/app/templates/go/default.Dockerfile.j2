@@ -1,28 +1,19 @@
-# syntax=docker/dockerfile:1
-
 # --- Build stage: compile a small, static binary. ---
-# --platform=$BUILDPLATFORM builds on the native arch while cross-compiling below.
-FROM --platform=$BUILDPLATFORM {{ base_image | default("golang:1.22-alpine", true) }} AS builder
+FROM {{ base_image | default("golang:1.22-alpine", true) }} AS builder
 
 WORKDIR /src
 
+# git/certs/tzdata cover common needs of `go build` (VCS info, TLS, zoneinfo).
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Download dependencies first, leveraging a cache mount for the Go module cache
-# and a bind mount for go.mod so this layer is reused when only source changes.
-RUN --mount=type=cache,target=/go/pkg/mod/ \
-    --mount=type=bind,source=go.mod,target=go.mod \
-    go mod download
-
-# TARGETARCH is provided automatically by the builder for multi-platform builds.
-ARG TARGETARCH
+# Download dependencies first so this layer is reused when only source changes.
+COPY go.* ./
+RUN go mod download
 
 COPY . .
 
-# Build with cache mounts for the module cache and the Go build cache.
-RUN --mount=type=cache,target=/go/pkg/mod/ \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build \
+# Build a static binary (CGO off); -ldflags/-trimpath strip and shrink it.
+RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w" \
     -trimpath \
     -o /out/{{ binary_name | default("server", true) }} {{ build_package | default(".", true) }}
