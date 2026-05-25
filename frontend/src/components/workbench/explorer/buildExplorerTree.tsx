@@ -36,7 +36,7 @@ export type ExplorerTreeNodeWithMeta = ExplorerTreeNode & { meta?: ExplorerNodeM
 
 export function buildProjectTree(
   project: Project,
-  builds: Build[] | undefined,
+  builds: Build[] | null,
   buildLabel: (id: string) => string | undefined,
 ): ExplorerTreeNodeWithMeta {
   const rootId = `project/${project.id}`;
@@ -55,8 +55,15 @@ export function buildProjectTree(
   }));
 
   const buildChildren: ExplorerTreeNodeWithMeta[] =
-    builds === undefined
-      ? []
+    builds === null
+      ? [
+          {
+            id: `${rootId}/builds/loading`,
+            name: 'loading…',
+            type: 'file' as const,
+            meta: { kind: 'builds', projectId: project.id },
+          },
+        ]
       : builds.length === 0
         ? [
             {

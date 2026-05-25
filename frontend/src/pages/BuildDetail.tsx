@@ -77,8 +77,10 @@ export function BuildDetailPage() {
         }
     }, [active, id, buildId, qc]);
     useEffect(() => {
-        if (status && !ACTIVE.includes(status))
+        if (status && !ACTIVE.includes(status)) {
             qc.invalidateQueries({ queryKey: qk.build(id, buildId) });
+            qc.invalidateQueries({ queryKey: qk.builds(id) });
+        }
     }, [status, id, buildId, qc]);
 
     if (buildQ.isLoading && !build)
@@ -111,7 +113,6 @@ export function BuildDetailPage() {
                         <span className="font-mono text-2xs text-dim">
                             {shortId(build.id)}
                         </span>
-                        <StatusBadge status={status ?? build.status} />
                     </>
                 }
             />

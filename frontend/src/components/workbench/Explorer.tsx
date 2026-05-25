@@ -7,10 +7,11 @@ import {
   FolderGit2,
 } from 'lucide-react';
 
-import { useBuilds, useProject, useProjects } from '@/api/hooks';
-import { useBuildNumbers } from '@/hooks/useBuildNumbers';
+import { useProject, useProjects } from '@/api/hooks';
+import { useExplorerBuilds } from '@/hooks/useExplorerBuilds';
 import { cn } from '@/lib/cn';
-import { useCommandPalette } from '@/components/CommandPalette';
+import { useFilePalette } from '@/components/FilePalette';
+import { MOD_KEY, formatShortcut } from '@/lib/keyboard';
 import { BuildContextMenu } from '@/components/build/BuildContextMenu';
 import { ProjectContextMenu } from '@/components/workbench/explorer/ProjectContextMenu';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -27,17 +28,16 @@ import type { ExplorerTreeNode } from './explorer/types';
 export function Explorer() {
   const explorerWidth = useLayout((s) => s.explorerWidth);
   const { data, isLoading } = useProjects({ per_page: 50, sort_by: 'updated_at' });
-  const setPaletteOpen = useCommandPalette((s) => s.setOpen);
+  const setFilePaletteOpen = useFilePalette((s) => s.setOpen);
   const navigate = useNavigate();
   const location = useLocation();
   const { id: activeProjectId } = useParams();
 
-  const buildNumbers = useBuildNumbers(activeProjectId ?? '');
-  const { data: buildsData } = useBuilds(
-    activeProjectId ?? '',
-    { per_page: 8 },
-    { enabled: !!activeProjectId },
+  const projectIds = useMemo(
+    () => data?.items.map((p) => p.id) ?? [],
+    [data?.items],
   );
+  const buildsByProject = useExplorerBuilds(projectIds);
 
   const selectedPath = useMemo(
     () =>
@@ -52,22 +52,18 @@ export function Explorer() {
   const tree = useMemo(() => {
     if (!data?.items.length) return [];
     return data.items.map((project) => {
-      const builds =
-        project.id === activeProjectId ? buildsData?.items : undefined;
+      const entry = buildsByProject.get(project.id);
       return buildProjectTree(
         project,
-        builds,
-        (id: string) =>
-          project.id === activeProjectId
-            ? (buildNumbers.label(id) ?? undefined)
-            : undefined,
+        entry?.items ?? null,
+        (id: string) => entry?.label(id),
       );
     });
-  }, [data?.items, activeProjectId, buildsData?.items, buildNumbers]);
+  }, [data?.items, buildsByProject]);
 
   const handleSelect = (_path: string, node: ExplorerTreeNode) => {
     const meta = node.meta as ExplorerNodeMeta | undefined;
-    if (node.id?.endsWith('/empty')) return;
+    if (node.id?.endsWith('/empty') || node.id?.endsWith('/loading')) return;
     navigateForTreeNode(meta, navigate);
   };
 
@@ -77,12 +73,12 @@ export function Explorer() {
       style={{ width: explorerWidth }}
     >
       <button
-        onClick={() => setPaletteOpen(true)}
+        onClick={() => setFilePaletteOpen(true)}
         className="m-2 flex items-center gap-2 rounded-lg border border-line2 bg-bg2 px-2.5 py-1.5 text-xs text-dim transition-colors hover:border-cyan-dim"
       >
         <Search className="h-3.5 w-3.5" />
         <span className="flex-1 text-left">Search…</span>
-        <kbd className="font-mono text-2xs text-cyan">⌘K</kbd>
+        <kbd className="font-mono text-2xs text-cyan">{formatShortcut(MOD_KEY, "P")}</kbd>
       </button>
 
       <nav className="px-2 pb-1">
