@@ -30,7 +30,8 @@ import { cn } from '@/lib/cn';
 import { useTabsStore } from '@/store/tabs';
 import { useAuthStore } from '@/store/auth';
 import { useLayout } from '@/store/layout';
-import { useCommandPalette } from '@/components/CommandPalette';
+import { useFilePalette } from '@/components/FilePalette';
+import { MOD_KEY, formatShortcut } from '@/lib/keyboard';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { LogoBadge, Wordmark } from '@/components/Logo';
 import { StatusDot } from '@/components/ui/Badge';
@@ -66,7 +67,7 @@ export function TabBar() {
     const reorderSortableTabs = useTabsStore((s) => s.reorderSortableTabs);
     const navigate = useNavigate();
     const location = useLocation();
-    const setPaletteOpen = useCommandPalette((s) => s.setOpen);
+    const setFilePaletteOpen = useFilePalette((s) => s.setOpen);
     const explorerOpen = useLayout((s) => s.explorerOpen);
     const explorerWidth = useLayout((s) => s.explorerWidth);
 
@@ -220,12 +221,12 @@ export function TabBar() {
             <div className="flex h-full shrink-0 items-center gap-2 border-l border-line px-2.5">
                 <LayoutToggles />
                 <button
-                    onClick={() => setPaletteOpen(true)}
-                    className="hidden items-center gap-1.5 rounded-md border border-line2 bg-bg2 px-2 py-1 font-mono text-2xs text-dim transition-colors hover:border-cyan-dim md:flex"
+                    type="button"
+                    onClick={() => setFilePaletteOpen(true)}
+                    className="hidden items-center gap-1.5 rounded-md border border-line2 bg-bg2 px-2 py-1 font-mono text-2xs text-dim transition-colors hover:text-text md:flex"
                 >
-                    <span className="text-cyan">⌘P</span> files
-                    <span className="mx-0.5 text-line2">·</span>
-                    <span className="text-cyan">⌘K</span> commands
+                    <span className="text-cyan">{formatShortcut(MOD_KEY, "P")}</span>
+                    quick open
                 </button>
                 <UserMenu />
             </div>

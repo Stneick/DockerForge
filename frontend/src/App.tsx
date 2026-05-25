@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuthStore } from "@/store/auth";
 import { RequireAuth } from "@/components/RequireAuth";
 import { CommandPalette } from "@/components/CommandPalette";
+import { FilePalette } from "@/components/FilePalette";
 import { ShortcutsHelp } from "@/components/ShortcutsHelp";
 import { Shell } from "@/components/workbench/Shell";
 import { CenteredSpinner } from "@/components/ui/Skeleton";
@@ -56,7 +57,7 @@ export function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {/* ⌘K palette lives above the routes so it's available everywhere authed. */}
+      {/* Palettes live above routes so they're available everywhere authed. */}
       <PaletteHost />
     </>
   );
@@ -69,6 +70,7 @@ function PaletteHost() {
   return (
     <>
       <CommandPalette />
+      <FilePalette />
       <ShortcutsHelp />
     </>
   );

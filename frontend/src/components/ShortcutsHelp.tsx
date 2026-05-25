@@ -3,13 +3,10 @@ import { create } from "zustand";
 
 import { useLayout } from "@/store/layout";
 import { useCommandPalette } from "@/components/CommandPalette";
+import { useFilePalette } from "@/components/FilePalette";
 import { Dialog, DialogContent } from "@/components/ui/Dialog";
 import { Kbd } from "@/components/ui/misc";
-
-// Platform-aware modifier label.
-const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-export const MOD = isMac ? "⌘" : "Ctrl";
-const ALT = isMac ? "⌥" : "Alt";
+import { ALT_KEY, MOD_KEY, hasMod } from "@/lib/keyboard";
 
 interface HelpStore {
   open: boolean;
@@ -28,7 +25,7 @@ const GROUPS: { title: string; items: Shortcut[] }[] = [
   {
     title: "General",
     items: [
-      { keys: [MOD, "K"], label: "Command palette" },
+      { keys: [MOD_KEY, "P"], label: "Quick open" },
       { keys: ["F1"], label: "Command palette" },
       { keys: ["?"], label: "This shortcuts sheet" },
       { keys: ["Esc"], label: "Close palette / dialog" },
@@ -37,18 +34,18 @@ const GROUPS: { title: string; items: Shortcut[] }[] = [
   {
     title: "Layout",
     items: [
-      { keys: [MOD, "B"], label: "Toggle Explorer" },
-      { keys: [MOD, "J"], label: "Toggle Panel" },
-      { keys: [MOD, ALT, "B"], label: "Toggle Inspector" },
+      { keys: [MOD_KEY, "B"], label: "Toggle Explorer" },
+      { keys: [MOD_KEY, "J"], label: "Toggle Panel" },
+      { keys: [MOD_KEY, ALT_KEY, "B"], label: "Toggle Inspector" },
     ],
   },
   {
     title: "Editor (Dockerfile)",
     items: [
-      { keys: [MOD, "F"], label: "Find" },
-      { keys: [MOD, "/"], label: "Toggle comment" },
-      { keys: [ALT, "↑/↓"], label: "Move line" },
-      { keys: [MOD, "D"], label: "Add next match to selection" },
+      { keys: [MOD_KEY, "F"], label: "Find" },
+      { keys: [MOD_KEY, "/"], label: "Toggle comment" },
+      { keys: [ALT_KEY, "↑/↓"], label: "Move line" },
+      { keys: [MOD_KEY, "D"], label: "Add next match to selection" },
     ],
   },
 ];
@@ -57,17 +54,22 @@ const GROUPS: { title: string; items: Shortcut[] }[] = [
 export function useGlobalShortcuts() {
   const { toggleExplorer, toggleDock, toggleInspector } = useLayout();
   const setPalette = useCommandPalette((s) => s.setOpen);
+  const setFilePalette = useFilePalette((s) => s.setOpen);
   const setHelp = useShortcutsHelp((s) => s.setOpen);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
+      const mod = hasMod(e);
       const el = e.target as HTMLElement | null;
       const editable =
         !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable || !!el.closest?.(".monaco-editor"));
       const key = e.key.toLowerCase();
 
-      if (mod && e.altKey && key === "b") {
+      if (mod && key === "p") {
+        e.preventDefault();
+        setPalette(false);
+        setFilePalette(!useFilePalette.getState().open);
+      } else if (mod && e.altKey && key === "b") {
         e.preventDefault();
         toggleInspector();
       } else if (mod && key === "b") {
@@ -78,15 +80,16 @@ export function useGlobalShortcuts() {
         toggleDock();
       } else if (e.key === "F1") {
         e.preventDefault();
+        setFilePalette(false);
         setPalette(true);
       } else if (e.key === "?" && !mod && !editable) {
         e.preventDefault();
         setHelp(true);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [toggleExplorer, toggleDock, toggleInspector, setPalette, setHelp]);
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
+  }, [toggleExplorer, toggleDock, toggleInspector, setPalette, setFilePalette, setHelp]);
 }
 
 export function ShortcutsHelp() {
@@ -103,8 +106,11 @@ export function ShortcutsHelp() {
                   <div key={s.label + s.keys.join()} className="flex items-center justify-between text-sm">
                     <span className="text-muted">{s.label}</span>
                     <span className="flex items-center gap-1">
-                      {s.keys.map((k) => (
-                        <Kbd key={k}>{k}</Kbd>
+                      {s.keys.map((k, i) => (
+                        <span key={k} className="flex items-center gap-1">
+                          {i > 0 && <span className="text-2xs text-dim">+</span>}
+                          <Kbd>{k}</Kbd>
+                        </span>
                       ))}
                     </span>
                   </div>

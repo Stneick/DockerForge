@@ -16,7 +16,7 @@ import { langMeta } from "@/lib/languageMeta";
 import { Kbd } from "@/components/ui/misc";
 import { useShortcutsHelp } from "@/components/ShortcutsHelp";
 
-// Global open/close state so any component (and the ⌘K hotkey) can toggle it.
+// Global open/close state (F1 and click targets toggle it).
 interface PaletteStore {
   open: boolean;
   setOpen: (v: boolean) => void;
@@ -53,10 +53,6 @@ export function CommandPalette() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen(!useCommandPalette.getState().open);
-      }
       if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", onKey);
