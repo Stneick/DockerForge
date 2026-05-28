@@ -216,7 +216,6 @@ function ForgeInner({ project, initialFile }: { project: Project; initialFile: F
             modifiedEditable
             issues={isDockerfile ? issues : undefined}
             onChange={setValue}
-            onKeepAll={() => setMode("edit")}
           />
         )}
       </div>

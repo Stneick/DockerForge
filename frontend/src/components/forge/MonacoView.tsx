@@ -13,12 +13,10 @@ import {
   lintToMarkers,
   registerDockerfileCompletions,
 } from "@/lib/monaco";
-import { revertAllChanges } from "@/lib/diffReview";
 import { useEditorOptions } from "@/store/prefs";
 import { Spinner } from "@/components/ui/Skeleton";
 import type { LintIssue } from "@/types/api";
-import { DiffReviewBar } from "./DiffReviewBar";
-import { attachDiffReviewViewZones } from "./diffReviewViewZones";
+import { DiffSummaryBar, summarizeDiffChanges } from "./DiffSummaryBar";
 
 const loadingEl = (
   <div className="flex h-full items-center justify-center bg-editor">
@@ -81,45 +79,37 @@ export function CodeEditor({
   );
 }
 
-/** Diff editor: read-only original vs (optionally editable) modified. */
+/** Diff editor: baseline vs modified, with an optional editable modified side. */
 export function CodeDiff({
   original,
   modified,
   language,
   sideBySide,
-  modifiedEditable,
   issues,
+  showSummary = true,
+  modifiedEditable = false,
   onChange,
-  onKeepAll,
-  showReviewActions = true,
 }: {
   original: string;
   modified: string;
   language: string;
   sideBySide: boolean;
-  modifiedEditable?: boolean;
   issues?: LintIssue[];
-  onChange?: (v: string) => void;
-  /** Called when the user keeps all changes (e.g. exit diff review). */
-  onKeepAll?: () => void;
-  showReviewActions?: boolean;
+  /** Show added / removed / modified hunk counts above the diff. */
+  showSummary?: boolean;
+  /** When true, the modified side accepts edits (original stays read-only). */
+  modifiedEditable?: boolean;
+  onChange?: (value: string) => void;
 }) {
   const diffRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
-  const detachZonesRef = useRef<{
-    dispose: () => void;
-    clearDismissed: () => void;
-    acceptAll: () => void;
-  } | null>(null);
   const prefs = useEditorOptions();
-  const [changeCount, setChangeCount] = useState(0);
+  const [summary, setSummary] = useState(summarizeDiffChanges(null));
 
-  const reviewEnabled = showReviewActions && !!modifiedEditable;
-
-  const syncChangeCount = useCallback(() => {
+  const syncSummary = useCallback(() => {
     const diff = diffRef.current;
     if (!diff) return;
-    setChangeCount(diff.getLineChanges()?.length ?? 0);
+    setSummary(summarizeDiffChanges(diff.getLineChanges()));
   }, []);
 
   const applyMarkers = () => {
@@ -133,33 +123,9 @@ export function CodeDiff({
 
   useEffect(applyMarkers, [issues]);
 
-  useEffect(() => {
-    return () => detachZonesRef.current?.dispose();
-  }, []);
-
-  const handleUndoAll = () => {
-    const diff = diffRef.current;
-    if (!diff) return;
-    const next = revertAllChanges(diff);
-    detachZonesRef.current?.clearDismissed();
-    if (next != null) onChange?.(next);
-    syncChangeCount();
-  };
-
-  const handleKeepAll = () => {
-    detachZonesRef.current?.acceptAll();
-    onKeepAll?.();
-  };
-
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {reviewEnabled && (
-        <DiffReviewBar
-          changeCount={changeCount}
-          onUndoAll={handleUndoAll}
-          onKeepAll={handleKeepAll}
-        />
-      )}
+      {showSummary && <DiffSummaryBar summary={summary} />}
       <div className="relative min-h-0 flex-1">
         <DiffEditor
           language={language}
@@ -171,27 +137,12 @@ export function CodeDiff({
             diffRef.current = diff;
             monacoRef.current = monaco;
             applyMarkers();
-            syncChangeCount();
-
-            if (reviewEnabled) {
-              detachZonesRef.current?.dispose();
-              const zones = attachDiffReviewViewZones(diff, monaco, () => {
-                onChange?.(diff.getModifiedEditor().getValue());
-                syncChangeCount();
-              });
-              const diffListener = diff.onDidUpdateDiff(syncChangeCount);
-              detachZonesRef.current = {
-                ...zones,
-                dispose: () => {
-                  zones.dispose();
-                  diffListener.dispose();
-                },
-              };
-            }
-
+            syncSummary();
+            diff.onDidUpdateDiff(syncSummary);
             if (onChange) {
               diff.getModifiedEditor().onDidChangeModelContent(() => {
                 onChange(diff.getModifiedEditor().getValue());
+                syncSummary();
               });
             }
           }}
