@@ -348,6 +348,9 @@ function ApplicationSection() {
             <span className="text-sm"><span className="font-medium">Auto-cleanup images</span><span className="ml-2 text-xs text-dim">delete built images after TTL</span></span>
             <Switch checked={current.image_cleanup_enabled} onCheckedChange={(v) => setDraft({ ...current, image_cleanup_enabled: v })} />
           </label>
+
+          <EnvReadonlyBlock settings={current} />
+
           <div className="flex justify-end">
             <Button variant="primary" onClick={save} loading={update.isPending} disabled={!draft}>
               <Save className="h-4 w-4" /> Save settings
@@ -355,6 +358,43 @@ function ApplicationSection() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function EnvReadonlyBlock({ settings }: { settings: AppSettings }) {
+  const fields: { key: keyof Pick<AppSettings, "build_max_concurrent" | "arq_job_timeout_seconds" | "project_source_dir">; label: string; env: string }[] = [
+    { key: "build_max_concurrent", label: "Max concurrent builds", env: "BUILD_MAX_CONCURRENT" },
+    { key: "arq_job_timeout_seconds", label: "ARQ job timeout (s)", env: "ARQ_JOB_TIMEOUT_SECONDS" },
+    { key: "project_source_dir", label: "Projects source directory", env: "PROJECTS_SOURCE_DIR" },
+  ];
+
+  return (
+    <div className="rounded-lg border border-line bg-bg2/50 p-4">
+      <div className="mb-3">
+        <div className="text-sm font-medium">Environment variables</div>
+        <p className="mt-1 text-2xs leading-relaxed text-dim">
+          Read-only here. Edit <span className="font-mono text-muted">backend/.env</span> and restart
+          the API + worker containers to apply.
+        </p>
+      </div>
+      <div className="space-y-3">
+        {fields.map((f) => (
+          <div key={f.key}>
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <Label className="mb-0">{f.label}</Label>
+              <span className="font-mono text-2xs text-dim">{f.env}</span>
+            </div>
+            <Input
+              mono
+              readOnly
+              tabIndex={-1}
+              value={String(settings[f.key] ?? "")}
+              className="cursor-default border-line bg-surface/60 text-muted opacity-100"
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -367,7 +407,7 @@ function AboutSection() {
       <div className="space-y-2 font-mono text-sm">
         <Line k="app" v="DockerForge frontend" />
         <Line k="version" v="0.1.0" />
-        <Line k="api" v="/api/v1 → :7000" />
+        <Line k="api" v="/api/v1 (same origin)" />
         <Line k="daemon" v={daemon === "ok" ? "● ready" : daemon === "down" ? "● down" : "○ unknown"} tone={daemon === "ok" ? "ok" : daemon === "down" ? "fail" : undefined} />
       </div>
     </div>
