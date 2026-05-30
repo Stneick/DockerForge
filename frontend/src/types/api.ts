@@ -208,12 +208,20 @@ export interface ProjectStats {
   successful_builds: number;
   failed_builds: number;
   cancelled_builds: number;
+  pending_builds: number;
+  building_builds: number;
   success_rate: number; // 0.0 - 1.0
   avg_duration_seconds: number | null;
   fastest_build_seconds: number | null;
   slowest_build_seconds: number | null;
   avg_image_size_bytes: number | null;
+  min_image_size_bytes: number | null;
+  max_image_size_bytes: number | null;
+  total_active_image_size_bytes: number | null;
+  cleaned_builds_count: number;
   last_build_at: string | null;
+  last_successful_build_at: string | null;
+  last_successful_image_tag: string | null;
   cached_builds: CacheBucketStats;
   no_cache_builds: CacheBucketStats;
 }
@@ -352,6 +360,10 @@ export interface AppSettings {
   build_log_stream_max_entries: number;
   hadolint_timeout_seconds: number;
   updated_at: string;
+  /** Read-only — set via backend .env; restart required. */
+  build_max_concurrent: number;
+  arq_job_timeout_seconds: number;
+  project_source_dir: string;
 }
 
 export interface UpdateAppSettingsRequest {
