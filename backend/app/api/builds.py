@@ -25,6 +25,7 @@ from app.services.build_service import (
     delete_build_image,
     download_build_file,
     get_build_comparison,
+    get_build_config_comparison,
     get_build_detail,
     get_build_logs,
     list_builds,
@@ -73,6 +74,16 @@ async def compare_builds(
     db: AsyncSession = Depends(get_db),
 ):
     return await get_build_comparison(project, build_a_id, build_b_id, db)
+
+
+@router.get("/compare/config")
+async def compare_build_config(
+    build_a_id: UUID = Query(..., description="First build ID"),
+    build_b_id: UUID = Query(..., description="Second build ID"),
+    project: ProjectModel = Depends(get_project),
+    db: AsyncSession = Depends(get_db),
+):
+    return await get_build_config_comparison(project, build_a_id, build_b_id, db)
 
 
 @router.get("/{build_id}", response_model=BuildDetail)
