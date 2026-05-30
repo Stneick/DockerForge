@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RefreshCw, Replace } from "lucide-react";
 
 import { useDetectSource } from "@/api/hooks";
@@ -13,6 +14,7 @@ import type { Project, SourceAnalysisResponse } from "@/types/api";
 /** The project's "Configuration" document: acquire source, then review +
  *  override the detected setup. */
 export function SetupDoc({ project }: { project: Project }) {
+  const navigate = useNavigate();
   const hasSource = project.source_uploaded || project.source_type !== "none";
   const [detection, setDetection] = useState<SourceAnalysisResponse | null>(null);
   const [replacing, setReplacing] = useState(false);
@@ -45,6 +47,7 @@ export function SetupDoc({ project }: { project: Project }) {
             onDetected={(res) => {
               setDetection(res);
               setReplacing(false);
+              navigate(`/projects/${project.id}?tab=setup`, { replace: true });
             }}
           />
         </div>
@@ -83,7 +86,11 @@ export function SetupDoc({ project }: { project: Project }) {
           }
         />
       ) : (
-        <ConfigPanel project={project} detection={detection} />
+        <ConfigPanel
+          project={project}
+          detection={detection}
+          onApplied={() => navigate(`/projects/${project.id}?tab=dockerfile`)}
+        />
       )}
     </div>
   );

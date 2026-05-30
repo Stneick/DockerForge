@@ -28,7 +28,8 @@ export function ProjectDetailPage() {
   if (!project) return <CenteredSpinner label="project not found" />;
 
   const requested = params.get("tab") as TabKey | null;
-  const tab: TabKey = requested ?? (project.language ? "dockerfile" : "setup");
+  const hasSource = project.source_uploaded || project.source_type !== "none";
+  const tab: TabKey = requested ?? (hasSource && project.language ? "dockerfile" : "setup");
   const file = params.get("file");
 
   // The Forge owns the full center + dock + inspector.

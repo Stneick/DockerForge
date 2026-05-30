@@ -26,7 +26,7 @@ export function NewProjectPage() {
       {
         onSuccess: (p) => {
           toast.success("Project created", "Now add your source.");
-          navigate(`/projects/${p.id}`);
+          navigate(`/projects/${p.id}?tab=setup`);
         },
         onError: (err) => setError(err instanceof ApiError ? err.message : "Could not create project"),
       },
