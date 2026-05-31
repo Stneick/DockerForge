@@ -48,11 +48,12 @@ async def register_user(data: RegisterRequest, db: AsyncSession) -> AuthResponse
             (User.email == data.email) | (User.username == data.username)
         )
     )
-    if user := existing.scalar_one_or_none():
-        if user.email == data.email:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="Email already exists"
-            )
+    users = existing.scalars().all()
+    if any(u.email == data.email for u in users):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Email already exists"
+        )
+    if any(u.username == data.username for u in users):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Username already exists"
         )
