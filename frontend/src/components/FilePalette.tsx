@@ -19,6 +19,7 @@ import { useProjects } from "@/api/hooks";
 import { useExplorerBuilds } from "@/hooks/useExplorerBuilds";
 import { cn } from "@/lib/cn";
 import { langMeta } from "@/lib/languageMeta";
+import { projectSettingsHref } from "@/lib/projectNav";
 import { shortId } from "@/lib/format";
 import { Kbd } from "@/components/ui/misc";
 import { StatusDot } from "@/components/ui/Badge";
@@ -164,7 +165,7 @@ export function FilePalette() {
           label: "Project settings",
           keywords: "settings",
           icon: <Settings className="h-4 w-4" />,
-          run: go(`/projects/${p.id}?tab=settings`),
+          run: go(projectSettingsHref(p.id)),
         },
       );
 

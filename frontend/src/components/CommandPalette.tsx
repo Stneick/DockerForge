@@ -11,6 +11,7 @@ import { useProjects } from "@/api/hooks";
 import { useLayout } from "@/store/layout";
 import { usePrefs } from "@/store/prefs";
 import { THEMES } from "@/lib/themes";
+import { projectSettingsHref } from "@/lib/projectNav";
 import { cn } from "@/lib/cn";
 import { langMeta } from "@/lib/languageMeta";
 import { Kbd } from "@/components/ui/misc";
@@ -91,7 +92,7 @@ export function CommandPalette() {
         { group: "This project", id: "p-cfg", label: "Configuration", icon: <SlidersHorizontal className="h-4 w-4" />, run: go(`/projects/${projectId}?tab=setup`) },
         { group: "This project", id: "p-builds", label: "Builds", icon: <Layers className="h-4 w-4" />, run: go(`/projects/${projectId}?tab=builds`) },
         { group: "This project", id: "p-stats", label: "Statistics", icon: <Activity className="h-4 w-4" />, run: go(`/projects/${projectId}?tab=stats`) },
-        { group: "This project", id: "p-set", label: "Project settings", icon: <Settings className="h-4 w-4" />, run: go(`/projects/${projectId}?tab=settings`) },
+        { group: "This project", id: "p-set", label: "Project settings", icon: <Settings className="h-4 w-4" />, run: go(projectSettingsHref(projectId, location.search)) },
       );
     }
 
@@ -141,7 +142,7 @@ export function CommandPalette() {
     }
 
     return list;
-  }, [projectsData, projectId, navigate, setOpen, layout, themeId, setTheme, openHelp]);
+  }, [projectsData, projectId, location.search, navigate, setOpen, layout, themeId, setTheme, openHelp]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

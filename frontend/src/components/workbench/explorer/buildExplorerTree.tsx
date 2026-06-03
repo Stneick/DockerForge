@@ -24,7 +24,7 @@ const PROJECT_FILES: {
 ];
 
 /** Tabs shown on project right-click (not listed in the tree). */
-export const PROJECT_CONTEXT_TAB_IDS = ['setup', 'stats', 'settings'] as const;
+export const PROJECT_CONTEXT_TAB_IDS = ['setup', 'stats'] as const;
 
 export type ExplorerNodeMeta =
   | { kind: 'project'; projectId: string }

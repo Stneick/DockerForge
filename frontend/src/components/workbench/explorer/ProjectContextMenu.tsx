@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import * as Ctx from '@radix-ui/react-context-menu';
 import {
   SlidersHorizontal,
@@ -7,13 +7,13 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
+import { projectSettingsHref } from '@/lib/projectNav';
 const itemCls =
   'flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-text outline-none transition-colors data-[highlighted]:bg-cyan/10 data-[highlighted]:text-cyan';
 
 export const PROJECT_CONTEXT_VIEWS = [
   { tab: 'setup', label: 'Configuration', icon: SlidersHorizontal },
   { tab: 'stats', label: 'Statistics', icon: BarChart3 },
-  { tab: 'settings', label: 'Settings', icon: SettingsIcon },
 ] as const;
 
 export function ProjectContextMenu({
@@ -24,9 +24,14 @@ export function ProjectContextMenu({
   children: React.ReactNode;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const openTab = (tab: string) => {
     navigate(`/projects/${projectId}?tab=${tab}`);
+  };
+
+  const openSettings = () => {
+    navigate(projectSettingsHref(projectId, location.search));
   };
 
   return (
@@ -50,6 +55,11 @@ export function ProjectContextMenu({
               {label}
             </Ctx.Item>
           ))}
+
+          <Ctx.Item className={itemCls} onSelect={openSettings}>
+            <SettingsIcon className="h-4 w-4" />
+            Settings
+          </Ctx.Item>
         </Ctx.Content>
       </Ctx.Portal>
     </Ctx.Root>

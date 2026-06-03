@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Save, Trash2, AlertTriangle } from "lucide-react";
 
@@ -7,16 +7,32 @@ import { ApiError } from "@/api/http";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Banner } from "@/components/ui/misc";
-import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/Dialog";
 import { toast } from "@/components/ui/Toast";
 import type { Project } from "@/types/api";
 
-export function ProjectSettings({ project }: { project: Project }) {
+function ProjectSettingsForm({
+  project,
+  onClose,
+}: {
+  project: Project;
+  onClose?: () => void;
+}) {
   const update = useUpdateProject(project.id);
   const del = useDeleteProject();
   const navigate = useNavigate();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
+
+  useEffect(() => {
+    setName(project.name);
+    setDescription(project.description ?? "");
+  }, [project.id, project.name, project.description]);
 
   const dirty = name !== project.name || description !== (project.description ?? "");
 
@@ -25,7 +41,8 @@ export function ProjectSettings({ project }: { project: Project }) {
       { name: name.trim(), description: description.trim() || null },
       {
         onSuccess: () => toast.success("Project updated"),
-        onError: (e) => toast.error("Update failed", e instanceof ApiError ? e.message : undefined),
+        onError: (e) =>
+          toast.error("Update failed", e instanceof ApiError ? e.message : undefined),
       },
     );
   };
@@ -34,19 +51,26 @@ export function ProjectSettings({ project }: { project: Project }) {
     del.mutate(project.id, {
       onSuccess: () => {
         toast.success("Project deleted");
+        onClose?.();
         navigate("/");
       },
-      onError: (e) => toast.error("Delete failed", e instanceof ApiError ? e.message : undefined),
+      onError: (e) =>
+        toast.error("Delete failed", e instanceof ApiError ? e.message : undefined),
     });
   };
 
   return (
-    <div className="max-w-xl space-y-6">
-      <div className="panel space-y-4 p-5">
+    <div className="space-y-6">
+      <div className="space-y-4 rounded-xl border border-line2 bg-bg2/40 p-4">
         <h3 className="text-sm font-semibold">General</h3>
         <div>
           <Label htmlFor="pname">Name</Label>
-          <Input id="pname" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
+          <Input
+            id="pname"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={100}
+          />
         </div>
         <div>
           <Label htmlFor="pdesc">Description</Label>
@@ -59,13 +83,18 @@ export function ProjectSettings({ project }: { project: Project }) {
           />
         </div>
         <div className="flex justify-end">
-          <Button variant="primary" onClick={save} loading={update.isPending} disabled={!dirty || !name.trim()}>
+          <Button
+            variant="primary"
+            onClick={save}
+            loading={update.isPending}
+            disabled={!dirty || !name.trim()}
+          >
             <Save className="h-4 w-4" /> Save changes
           </Button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-fail/30 bg-fail/[0.04] p-5">
+      <div className="rounded-xl border border-fail/30 bg-fail/[0.04] p-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-fail">
           <AlertTriangle className="h-4 w-4" /> Danger zone
         </h3>
@@ -97,5 +126,27 @@ export function ProjectSettings({ project }: { project: Project }) {
         </Dialog>
       </div>
     </div>
+  );
+}
+
+export function ProjectSettingsDialog({
+  project,
+  open,
+  onOpenChange,
+}: {
+  project: Project;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        title="Project settings"
+        description={project.name}
+        className="max-h-[min(85vh,640px)] overflow-y-auto"
+      >
+        <ProjectSettingsForm project={project} onClose={() => onOpenChange(false)} />
+      </DialogContent>
+    </Dialog>
   );
 }
