@@ -12,7 +12,6 @@ import { useDaemonHealth } from "@/hooks/useDaemonHealth";
 import { THEMES } from "@/lib/themes";
 import { cn } from "@/lib/cn";
 import { isPasswordValid, PASSWORD_RULES } from "@/lib/password";
-import { useWorkbenchTab } from "@/components/workbench/useWorkbenchTab";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -32,7 +31,6 @@ const SECTIONS = [
 type SectionId = (typeof SECTIONS)[number]["id"];
 
 export function SettingsPage() {
-  useWorkbenchTab({ kind: "settings", title: "Settings", pinned: true, id: "/settings" });
   const [params, setParams] = useSearchParams();
   const active = (params.get("section") as SectionId) ?? "profile";
   const setActive = (id: SectionId) => setParams((p) => { p.set("section", id); return p; });

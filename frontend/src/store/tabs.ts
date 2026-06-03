@@ -41,12 +41,12 @@ interface PersistedTabs {
   tabs: WorkbenchTab[];
   activeId: string | null;
 }
-function isDashboardTab(tab: WorkbenchTab) {
-  return tab.kind === "dashboard" || tab.id === "/";
+function isShellTab(tab: WorkbenchTab) {
+  return tab.kind === "dashboard" || tab.kind === "settings";
 }
 
 function tabIsLocked(tab: WorkbenchTab) {
-  return isDashboardTab(tab) || !!tab.pinned;
+  return !!tab.pinned;
 }
 
 function applySortableOrder(tabs: WorkbenchTab[], orderedSortableIds: string[]): WorkbenchTab[] {
@@ -57,25 +57,19 @@ function applySortableOrder(tabs: WorkbenchTab[], orderedSortableIds: string[]):
     const id = orderedSortableIds[sortableIdx++];
     return (id ? byId.get(id) : undefined) ?? tab;
   });
-  return normalizeTabOrder(next);
-}
-
-/** Dashboard stays first; other tabs keep relative order. */
-function normalizeTabOrder(tabs: WorkbenchTab[]): WorkbenchTab[] {
-  const dash = tabs.find(isDashboardTab);
-  if (!dash) return tabs;
-  const rest = tabs.filter((t) => !isDashboardTab(t));
-  return [dash, ...rest];
+  return next;
 }
 
 function loadTabs(): PersistedTabs {
   try {
     const data = JSON.parse(localStorage.getItem(KEY) ?? "null");
     if (data && Array.isArray(data.tabs)) {
-      return {
-        tabs: normalizeTabOrder(data.tabs),
-        activeId: data.activeId ?? null,
-      };
+      const tabs = data.tabs.filter((t: WorkbenchTab) => !isShellTab(t));
+      const activeId =
+        data.activeId && tabs.some((t: WorkbenchTab) => t.id === data.activeId)
+          ? data.activeId
+          : (tabs[0]?.id ?? null);
+      return { tabs, activeId };
     }
   } catch {
     /* ignore */
@@ -99,7 +93,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
           tabs: s.tabs.map((t) => (t.id === tab.id ? { ...t, ...tab } : t)),
         };
       }
-      const tabs = normalizeTabOrder([...s.tabs, tab]);
+      const tabs = [...s.tabs, tab];
       return { tabs, activeId: tab.id };
     }),
 
@@ -127,14 +121,14 @@ export const useTabsStore = create<TabsState>((set, get) => ({
       const from = s.tabs.findIndex((t) => t.id === id);
       if (from < 0) return s;
       const tab = s.tabs[from];
-      if (isDashboardTab(tab)) return s;
+      if (tabIsLocked(tab)) return s;
       const max = s.tabs.length - 1;
-      const to = Math.max(1, Math.min(toIndex, max));
+      const to = Math.max(0, Math.min(toIndex, max));
       if (from === to) return s;
       const tabs = [...s.tabs];
       const [item] = tabs.splice(from, 1);
       tabs.splice(to, 0, item);
-      return { tabs: normalizeTabOrder(tabs) };
+      return { tabs };
     }),
   reorderSortableTabs: (orderedSortableIds) =>
     set((s) => {
