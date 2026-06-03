@@ -62,6 +62,10 @@ export default {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "fade-in-opacity": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
         "auth-card-in": {
           from: { opacity: "0", transform: "translateY(14px) scale(0.985)" },
           to: { opacity: "1", transform: "translateY(0) scale(1)" },
@@ -83,6 +87,7 @@ export default {
         blink: "blink 1.1s steps(1) infinite",
         scan: "scan 2.2s linear infinite",
         "fade-in": "fade-in 0.18s ease-out",
+        "fade-in-opacity": "fade-in-opacity 0.18s ease-out both",
         "auth-card-in": "auth-card-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both",
         "auth-fade-up": "auth-fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) both",
         "auth-accent-in": "auth-accent-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both",
