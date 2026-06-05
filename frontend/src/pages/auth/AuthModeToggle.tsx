@@ -5,8 +5,8 @@ import { cn } from "@/lib/cn";
 export type AuthMode = "signin" | "signup";
 
 const MODES: { id: AuthMode; label: string; hint: string }[] = [
-  { id: "signin", label: "Sign in", hint: "returning" },
-  { id: "signup", label: "Create account", hint: "new forge" },
+  { id: "signin", label: "Sign in", hint: "Master" },
+  { id: "signup", label: "Create account", hint: "Apprentice" },
 ];
 
 export function AuthModeToggle({

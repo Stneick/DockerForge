@@ -1,6 +1,6 @@
 import { memo } from "react";
 
-import { LogoMark, Wordmark } from "@/components/Logo";
+import { AuthLogo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
 import { Backdrop } from "./backdrops";
 
@@ -29,24 +29,27 @@ export function AuthLayout({
               "radial-gradient(800px 500px at 70% 10%, rgb(var(--cyan)/0.08), transparent 60%), radial-gradient(700px 500px at 10% 100%, rgb(var(--docker)/0.07), transparent 60%)",
           }}
         />
-        <div className="relative flex h-full flex-col justify-between p-12">
-          <div className="flex items-center gap-4">
-            <LogoMark className="h-12 w-12" />
-            <Wordmark className="text-2xl" />
+        <div className="relative h-full p-12">
+          <div className="absolute left-5 top-12">
+            <AuthLogo sizeClassName="h-32" iconClassName="h-36" />
           </div>
-          <div>
-            <div className="mb-4 font-mono text-2xs uppercase tracking-[0.18em] text-cyan">
-              self-hosted image foundry
+
+          <div className="flex h-full flex-col justify-center">
+            <div className="max-w-md">
+              <div className="mb-4 font-mono text-2xs uppercase tracking-[0.18em] text-cyan">
+                self-hosted image foundry
+              </div>
+              <h1 className="text-4xl font-extrabold leading-tight tracking-tight">
+                From source to a shipped image, forged in one place.
+              </h1>
+              <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted">
+                Upload code, let DockerForge detect the stack, tune the Dockerfile with live
+                hadolint, then build and watch the logs stream in real time.
+              </p>
             </div>
-            <h1 className="max-w-md text-4xl font-extrabold leading-tight tracking-tight">
-              From source to a shipped image, forged in one place.
-            </h1>
-            <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted">
-              Upload code, let DockerForge detect the stack, tune the Dockerfile with live
-              hadolint, then build and watch the logs stream in real time.
-            </p>
           </div>
-          <div className="flex gap-6 font-mono text-2xs text-dim">
+
+          <div className="absolute bottom-12 left-12 flex gap-6 font-mono text-2xs text-dim">
             <span>● detect</span>
             <span>● forge</span>
             <span>● build</span>

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Check, X } from 'lucide-react';
+import { Check, Eye, EyeOff, X } from 'lucide-react';
 
 import { ApiError } from '@/api/http';
 import { useAuthStore } from '@/store/auth';
@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { FieldError, Input, Label } from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
-import { LogoMark, Wordmark } from '@/components/Logo';
+import { AuthLogo } from '@/components/Logo';
 import { AuthLayout } from './AuthLayout';
 import { AuthModeToggle, type AuthMode } from './AuthModeToggle';
 import { useCardTopAnchor } from './useCardTopAnchor';
@@ -37,6 +37,54 @@ const heightSpring = {
     mass: 0.85,
 };
 const contentEase = [0.22, 1, 0.36, 1] as const;
+
+function PasswordInput({
+    id,
+    value,
+    onChange,
+    autoComplete,
+    tabbable,
+    className,
+}: {
+    id: string;
+    value: string;
+    onChange: (value: string) => void;
+    autoComplete: 'current-password' | 'new-password';
+    tabbable: boolean;
+    className?: string;
+}) {
+    const [visible, setVisible] = useState(false);
+
+    return (
+        <div className="relative">
+            <Input
+                id={id}
+                type={visible ? 'text' : 'password'}
+                autoComplete={autoComplete}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder="••••••••"
+                required
+                tabIndex={tabbable ? 0 : -1}
+                className={cn(className, 'pr-10')}
+            />
+            <button
+                type="button"
+                tabIndex={tabbable ? 0 : -1}
+                aria-label={visible ? 'Hide password' : 'Show password'}
+                aria-pressed={visible}
+                onClick={() => setVisible((v) => !v)}
+                className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-dim transition-colors hover:bg-surface2 hover:text-text"
+            >
+                {visible ? (
+                    <EyeOff className="h-4 w-4" />
+                ) : (
+                    <Eye className="h-4 w-4" />
+                )}
+            </button>
+        </div>
+    );
+}
 
 function useAuthMode(): [AuthMode, (mode: AuthMode) => void] {
     const location = useLocation();
@@ -143,10 +191,7 @@ export function AuthPage() {
     return (
         <AuthLayout cardTop={cardTop}>
             <div ref={topBlockRef} className="shrink-0">
-                <div className="mb-6 flex items-center lg:hidden">
-                    <LogoMark className="h-8 w-8" />
-                    <Wordmark />
-                </div>
+                <AuthLogo className="mb-6 lg:hidden" sizeClassName="h-24" iconClassName="h-28" />
                 <AuthModeToggle mode={mode} onChange={setMode} />
 
                 {/* Fixed-height header — crossfade only, no vertical shift */}
@@ -220,15 +265,12 @@ function SignInPanel({ tabbable }: { tabbable: boolean }) {
             </div>
             <div className="group">
                 <Label htmlFor="signin-password">Password</Label>
-                <Input
+                <PasswordInput
                     id="signin-password"
-                    type="password"
                     autoComplete="current-password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    tabIndex={tabbable ? 0 : -1}
+                    onChange={setPassword}
+                    tabbable={tabbable}
                     className={inputMotion}
                 />
             </div>
@@ -311,22 +353,19 @@ function SignUpPanel({ tabbable }: { tabbable: boolean }) {
                 />
                 {touched && username.length > 0 && !usernameOk && (
                     <FieldError>
-                        3–30 chars, letters/numbers/_/- and no leading or
-                        trailing _ or -
+                        3–30 characters. Letters, numbers, underscores, and
+                        hyphens are fine, just not at the beginning or end.
                     </FieldError>
                 )}
             </div>
             <div>
                 <Label htmlFor="signup-password">Password</Label>
-                <Input
+                <PasswordInput
                     id="signup-password"
-                    type="password"
                     autoComplete="new-password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    tabIndex={tabbable ? 0 : -1}
+                    onChange={setPassword}
+                    tabbable={tabbable}
                     className={inputMotion}
                 />
                 <ul className="mt-2.5 grid grid-cols-2 gap-1.5">
