@@ -1,31 +1,57 @@
 import { cn } from "@/lib/cn";
 
+export const LOGO_SRC = "/logo.png";
+export const LOGO_ICON_SRC = "/dockerforge-textless.png";
+export const LOGO_TEXT_SRC = "/dockerforge-text.png";
+
+/** Top portion of logo.png — whale + anvil only, above the baked-in wordmark. */
+const LOGO_ICON_HEIGHT_RATIO = 0.46;
+
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={cn("h-5 w-5", className)}>
-      <path d="M3 9h4v4H3zM8 9h4v4H8zM13 9h4v4h-4zM8 4h4v4H8z" fill="rgb(var(--cyan))" />
-      <path
-        d="M18 9c2 0 3 1.5 3 3s-2 4-6 4H3c0-3 1-7 5-7"
-        stroke="rgb(var(--docker))"
-        strokeWidth="1.4"
-        fill="none"
-      />
-    </svg>
+    <img
+      src={LOGO_SRC}
+      alt="DockerForge"
+      draggable={false}
+      className={cn("h-8 w-auto object-contain object-left", className)}
+    />
   );
 }
 
-export function LogoBadge({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        "grid h-8 w-8 place-items-center rounded-lg border border-line2 shadow-glow",
-        "bg-gradient-to-br from-[#16222e] to-[#0c1218]",
-        className,
-      )}
-    >
-      <LogoMark />
-    </div>
-  );
+/** Compact mark for the tab bar — icon only; wordmark is rendered separately. */
+export function LogoBadge({
+  className,
+  crop = "full",
+}: {
+  className?: string;
+  crop?: "full" | "icon";
+}) {
+  if (crop === "icon") {
+    const clipBottom = `${(1 - LOGO_ICON_HEIGHT_RATIO) * 100}%`;
+
+    return (
+      <span
+        className={cn(
+          "inline-flex h-7 shrink-0 items-start overflow-hidden rounded-md",
+          className,
+        )}
+      >
+        <img
+          src={LOGO_SRC}
+          alt=""
+          aria-hidden
+          draggable={false}
+          className="w-auto max-w-none select-none"
+          style={{
+            height: `calc(100% / ${LOGO_ICON_HEIGHT_RATIO})`,
+            clipPath: `inset(0 0 ${clipBottom} 0)`,
+          }}
+        />
+      </span>
+    );
+  }
+
+  return <LogoMark className={cn("shrink-0", className)} />;
 }
 
 export function Wordmark({ className }: { className?: string }) {
@@ -33,5 +59,61 @@ export function Wordmark({ className }: { className?: string }) {
     <span className={cn("text-[15px] font-extrabold tracking-tight", className)}>
       docker<span className="text-cyan">forge</span>
     </span>
+  );
+}
+
+/** Text PNG is square; the wordmark sits in a thin horizontal band — crop to that band. */
+const LOGO_TEXT_BAND_RATIO = 0.56;
+
+function AuthTextMark({
+  className,
+  bandClassName,
+}: {
+  className?: string;
+  bandClassName?: string;
+}) {
+  const inset = `${((1 - LOGO_TEXT_BAND_RATIO) / 2) * 100}%`;
+
+  return (
+    <span
+      className={cn("inline-flex shrink-0 items-center overflow-hidden", bandClassName, className)}
+    >
+      <img
+        src={LOGO_TEXT_SRC}
+        alt="DockerForge"
+        draggable={false}
+        className={cn("w-auto max-w-none select-none object-contain", className)}
+        style={{
+          height: `calc(100% / ${LOGO_TEXT_BAND_RATIO})`,
+          clipPath: `inset(${inset} 0 ${inset} 0)`,
+        }}
+      />
+    </span>
+  );
+}
+
+/** Auth pages — whale/anvil icon + DockerForge wordmark PNG, side by side. */
+export function AuthLogo({
+  className,
+  sizeClassName = "h-24",
+  iconClassName,
+}: {
+  className?: string;
+  /** Text band outer height. */
+  sizeClassName?: string;
+  /** Icon height — defaults one step above the text band. */
+  iconClassName?: string;
+}) {
+  return (
+    <div className={cn("flex items-center", className)}>
+      <img
+        src={LOGO_ICON_SRC}
+        alt=""
+        aria-hidden
+        draggable={false}
+        className={cn("w-auto shrink-0 object-contain", iconClassName ?? sizeClassName)}
+      />
+      <AuthTextMark bandClassName={sizeClassName} className="-ml-6" />
+    </div>
   );
 }
