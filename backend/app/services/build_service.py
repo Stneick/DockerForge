@@ -2,7 +2,7 @@ import asyncio
 import json
 import math
 from datetime import UTC, datetime
-from difflib import SequenceMatcher
+from difflib import SequenceMatcher, unified_diff
 from pathlib import Path
 from uuid import UUID
 
@@ -17,6 +17,7 @@ from app.models.settings import AppSettings as AppSettingsModel
 from app.schemas.build import Build as BuildSchema
 from app.schemas.build import (
     BuildComparisonResponse,
+    BuildConfigComparisonResponse,
     BuildDetail,
     BuildListResponse,
     BuildLogsResponse,
@@ -387,7 +388,7 @@ async def get_build_comparison(
         or build_b.status != BuildStatusEnum.success
     ):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Builds must be successful",
         )
 
@@ -440,6 +441,51 @@ async def get_build_comparison(
             (build_b.duration_seconds or 0) - (build_a.duration_seconds or 0), 2
         ),
         layer_comparison=layer_comparison,
+    )
+
+
+def _unified_diff(a: str | None, b: str | None, label: str) -> str:
+    a_lines = (a or "").splitlines(keepends=True)
+    b_lines = (b or "").splitlines(keepends=True)
+    if a_lines == b_lines:
+        return ""
+    return "".join(
+        unified_diff(a_lines, b_lines, fromfile=f"a/{label}", tofile=f"b/{label}")
+    )
+
+
+async def get_build_config_comparison(
+    project: ProjectModel,
+    build_a_id: UUID,
+    build_b_id: UUID,
+    db: AsyncSession,
+) -> BuildConfigComparisonResponse:
+    build_a = await get_build_detail(project, build_a_id, db)
+    build_b = await get_build_detail(project, build_b_id, db)
+
+    dockerfile_diff = _unified_diff(
+        build_a.dockerfile_content, build_b.dockerfile_content, "Dockerfile"
+    )
+    dockerignore_diff = _unified_diff(
+        build_a.dockerignore_content, build_b.dockerignore_content, ".dockerignore"
+    )
+
+    config_a = build_a.build_config or {}
+    config_b = build_b.build_config or {}
+    config_changes = [
+        {"key": key, "value_a": config_a.get(key), "value_b": config_b.get(key)}
+        for key in sorted(set(config_a) | set(config_b))
+        if config_a.get(key) != config_b.get(key)
+    ]
+
+    return BuildConfigComparisonResponse(
+        build_a=build_a,
+        build_b=build_b,
+        dockerfile_changed=bool(dockerfile_diff),
+        dockerfile_diff=dockerfile_diff,
+        dockerignore_changed=bool(dockerignore_diff),
+        dockerignore_diff=dockerignore_diff,
+        config_changes=config_changes,
     )
 
 

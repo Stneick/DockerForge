@@ -112,6 +112,17 @@ class BuildComparisonResponse(BaseModel):
     layer_comparison: list[dict]  # {instruction, size_a, size_b, diff_bytes, status}
 
 
+class BuildConfigComparisonResponse(BaseModel):
+
+    build_a: BuildDetail
+    build_b: BuildDetail
+    dockerfile_changed: bool
+    dockerfile_diff: str  # unified diff, empty string if unchanged
+    dockerignore_changed: bool
+    dockerignore_diff: str  # unified diff, empty string if unchanged
+    config_changes: list[dict]  # {key, value_a, value_b} for differing keys
+
+
 class StreamEvent(BaseModel):
     status: str
     log: LogEntry | None = None
