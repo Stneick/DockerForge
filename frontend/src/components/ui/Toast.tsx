@@ -78,7 +78,7 @@ export function ToastViewport() {
           </div>
         </RT.Root>
       ))}
-      <RT.Viewport className="fixed bottom-4 right-4 z-[100] flex w-[min(92vw,360px)] flex-col gap-2 outline-none" />
+      <RT.Viewport className="fixed bottom-10 right-4 z-[100] flex w-[min(92vw,360px)] flex-col gap-2 outline-none" />
     </RT.Provider>
   );
 }
