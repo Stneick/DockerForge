@@ -41,7 +41,7 @@ import { useLayout } from '@/store/layout';
 import { useFilePalette } from '@/components/FilePalette';
 import { MOD_KEY, formatShortcut } from '@/lib/keyboard';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { LogoBadge, Wordmark } from '@/components/Logo';
+import { LogoBadge, LogoTextMark } from '@/components/Logo';
 import { StatusDot } from '@/components/ui/Badge';
 import type { BuildStatus } from '@/types/api';
 import type { WorkbenchTab } from '@/store/tabs';
@@ -439,16 +439,14 @@ export function TabBar() {
                 onClick={() => navigate('/')}
                 title="DockerForge"
                 className={cn(
-                    'flex h-full shrink-0 items-center gap-2.5 border-r border-line transition-colors hover:bg-surface2',
-                    explorerOpen ? 'px-3' : 'w-[42px] justify-center',
+                    'flex h-full shrink-0 items-center border-r border-line transition-colors hover:bg-surface2',
+                    explorerOpen ? 'gap-0 px-3' : 'w-[42px] justify-center',
                 )}
                 style={explorerOpen ? { width: explorerWidth } : undefined}
             >
-                <LogoBadge crop="icon" className="shadow-none" />
+                <LogoBadge crop="icon" className="h-16 mt-1 shadow-none" />
                 {explorerOpen && (
-                    <span className="shrink-0 leading-none">
-                        <Wordmark />
-                    </span>
+                    <LogoTextMark bandClassName="h-20" className="-ml-5 mt-1 shrink-0" />
                 )}
             </button>
 
