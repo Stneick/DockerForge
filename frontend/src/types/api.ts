@@ -303,6 +303,22 @@ export interface BuildComparisonResponse {
   layer_comparison: LayerComparison[];
 }
 
+export interface BuildConfigChange {
+  key: string;
+  value_a: unknown;
+  value_b: unknown;
+}
+
+export interface BuildConfigComparisonResponse {
+  build_a: BuildDetail;
+  build_b: BuildDetail;
+  dockerfile_changed: boolean;
+  dockerfile_diff: string;
+  dockerignore_changed: boolean;
+  dockerignore_diff: string;
+  config_changes: BuildConfigChange[];
+}
+
 // ---- registry / push ----
 export interface PushBuildRequest {
   target_tag: string;

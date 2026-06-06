@@ -202,6 +202,14 @@ export function useCompareBuilds(pid: string, a: string, b: string, enabled = tr
   });
 }
 
+export function useCompareBuildConfig(pid: string, a: string, b: string, enabled = true) {
+  return useQuery({
+    queryKey: qk.compareConfig(pid, a, b),
+    queryFn: () => buildsApi.compareConfig(pid, a, b),
+    enabled: enabled && !!a && !!b,
+  });
+}
+
 export function usePushBuild(pid: string, bid: string) {
   return useMutation({
     mutationFn: (body: PushBuildRequest) => buildsApi.push(pid, bid, body),

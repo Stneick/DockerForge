@@ -31,10 +31,8 @@ export function BuildContextMenu({
   const numbers = useBuildNumbers(projectId);
 
   const active = build.status === "pending" || build.status === "building";
-  const candidates = (data?.items ?? []).filter(
-    (b) => b.id !== build.id && b.status === "success",
-  );
-  const canCompare = build.status === "success";
+  const candidates = (data?.items ?? []).filter((b) => b.id !== build.id);
+  const canCompare = candidates.length > 0;
 
   const label = (id: string) => numbers.label(id) ?? shortId(id);
 
@@ -73,7 +71,7 @@ export function BuildContextMenu({
             <Ctx.Portal>
               <Ctx.SubContent className="z-50 max-h-72 w-48 overflow-y-auto rounded-lg border border-line2 bg-surface2 p-1 shadow-xl animate-fade-in">
                 {candidates.length === 0 ? (
-                  <div className="px-2.5 py-2 text-2xs text-dim">No other successful builds</div>
+                  <div className="px-2.5 py-2 text-2xs text-dim">No other builds</div>
                 ) : (
                   candidates.map((other) => (
                     <Ctx.Item

@@ -17,4 +17,6 @@ export const qk = {
   build: (pid: string, bid: string) => ["build", pid, bid] as const,
   buildLogs: (pid: string, bid: string) => ["build", pid, bid, "logs"] as const,
   compare: (pid: string, a: string, b: string) => ["compare", pid, a, b] as const,
+  compareConfig: (pid: string, a: string, b: string) =>
+    ["compareConfig", pid, a, b] as const,
 };

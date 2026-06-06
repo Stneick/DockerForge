@@ -2,6 +2,7 @@ import { api } from "./http";
 import type {
   Build,
   BuildComparisonResponse,
+  BuildConfigComparisonResponse,
   BuildDetail,
   BuildListResponse,
   BuildLogsResponse,
@@ -32,6 +33,10 @@ export const buildsApi = {
     api.del<MessageResponse>(`${base(pid)}/${bid}/image`),
   compare: (pid: string, buildA: string, buildB: string) =>
     api.get<BuildComparisonResponse>(`${base(pid)}/compare`, {
+      query: { build_a_id: buildA, build_b_id: buildB },
+    }),
+  compareConfig: (pid: string, buildA: string, buildB: string) =>
+    api.get<BuildConfigComparisonResponse>(`${base(pid)}/compare/config`, {
       query: { build_a_id: buildA, build_b_id: buildB },
     }),
   push: (pid: string, bid: string, body: PushBuildRequest) =>
