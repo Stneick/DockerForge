@@ -121,9 +121,15 @@ async def get_project_stats(project: ProjectModel, db: AsyncSession) -> ProjectS
         func.count(case((Build.status == BuildStatusEnum.building, 1))).label(
             "building"
         ),
-        func.avg(Build.duration_seconds).label("avg_duration"),
-        func.min(Build.duration_seconds).label("fastest"),
-        func.max(Build.duration_seconds).label("slowest"),
+        func.avg(Build.duration_seconds)
+        .filter(Build.status == BuildStatusEnum.success)
+        .label("avg_duration"),
+        func.min(Build.duration_seconds)
+        .filter(Build.status == BuildStatusEnum.success)
+        .label("fastest"),
+        func.max(Build.duration_seconds)
+        .filter(Build.status == BuildStatusEnum.success)
+        .label("slowest"),
         func.avg(Build.image_size_bytes).label("avg_size"),
         func.min(Build.image_size_bytes).label("min_size"),
         func.max(Build.image_size_bytes).label("max_size"),
@@ -159,9 +165,15 @@ async def get_project_stats(project: ProjectModel, db: AsyncSession) -> ProjectS
             await db.execute(
                 select(
                     func.count().label("build_count"),
-                    func.avg(Build.duration_seconds).label("avg"),
-                    func.min(Build.duration_seconds).label("min"),
-                    func.max(Build.duration_seconds).label("max"),
+                    func.avg(Build.duration_seconds)
+                    .filter(Build.status == BuildStatusEnum.success)
+                    .label("avg"),
+                    func.min(Build.duration_seconds)
+                    .filter(Build.status == BuildStatusEnum.success)
+                    .label("min"),
+                    func.max(Build.duration_seconds)
+                    .filter(Build.status == BuildStatusEnum.success)
+                    .label("max"),
                 ).where(
                     Build.project_id == project.id,
                     Build.build_config["no_cache"].astext
